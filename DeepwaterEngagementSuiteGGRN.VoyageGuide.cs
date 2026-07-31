@@ -42,14 +42,71 @@ public partial class DeepwaterEngagementSuiteGGRN
 
             _objectives[entity.Id] = new GuideObjective(
                 entity.Id, entity, candidate.Name, candidate.Value, candidate.IsMultiplier);
+
+            // The state names differ per object type and are not documented, so record them the
+            // first time each kind is seen rather than assuming the list above is complete.
+            if (Settings.VoyageSettings.EnableDebugDump)
+                Telemetry?.NoteModRecord("entity-states:" + entity.Path, () => DescribeObjectiveStates(entity));
+
             return;
         }
+    }
+
+    /// <summary>
+    /// Whether an objective has already been taken.
+    ///
+    /// Chests report it on their Chest component, but a good half of what is worth walking to in a
+    /// voyage — anchors, encounter spawners, ducat drops — are terrain objects with no Chest at
+    /// all, and checking only the component left the guide pointing at things already looted. The
+    /// entity's own flag and its state machine cover those.
+    /// </summary>
+    private static bool IsObjectiveTaken(Entity entity)
+    {
+        if (entity.IsOpened)
+            return true;
+
+        if (entity.TryGetComponent(out Chest chest) && chest.IsOpened)
+            return true;
+
+        if (entity.TryGetComponent(out StateMachine stateMachine))
+        {
+            foreach (var state in stateMachine.States)
+            {
+                if (state.Value != 1)
+                    continue;
+
+                if (state.Name is "activated" or "opened" or "used" or "collected" or "finished" or "complete")
+                    return true;
+            }
+        }
+
+        return false;
     }
 
     private void ForgetObjective(Entity entity)
     {
         if (entity != null)
             _objectives.Remove(entity.Id);
+    }
+
+    private static object DescribeObjectiveStates(Entity entity)
+    {
+        try
+        {
+            return new
+            {
+                path = entity.Path,
+                isOpened = entity.IsOpened,
+                hasChest = entity.TryGetComponent<Chest>(out _),
+                states = entity.TryGetComponent(out StateMachine sm)
+                    ? sm.States.Select(x => $"{x.Name}={x.Value}").ToList()
+                    : null,
+            };
+        }
+        catch (Exception ex)
+        {
+            return $"<error: {ex.GetBaseException().Message}>";
+        }
     }
 
     /// <summary>Objectives still worth visiting, dropping anything opened or gone.</summary>
@@ -63,8 +120,7 @@ public partial class DeepwaterEngagementSuiteGGRN
             bool gone;
             try
             {
-                gone = objective.Entity is not { IsValid: true }
-                       || objective.Entity.GetComponent<Chest>()?.IsOpened == true;
+                gone = objective.Entity is not { IsValid: true } || IsObjectiveTaken(objective.Entity);
             }
             catch
             {
