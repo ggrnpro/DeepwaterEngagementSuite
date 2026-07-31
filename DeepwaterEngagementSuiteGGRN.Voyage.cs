@@ -39,6 +39,7 @@ public partial class DeepwaterEngagementSuiteGGRN
     private string _voyageDiagnostics;
     private long _voyageSearchIterations;
     private double _voyageLastImprovement;
+    private bool _voyageConverged;
 
     public List<NormalInventoryItem> GetAvailableCharts()
     {
@@ -463,14 +464,18 @@ public partial class DeepwaterEngagementSuiteGGRN
                 {
                     _voyagePlanner = null;
                     _voyageExactPlanner = new VoyagePlannerExact();
-                    var r = _voyageExactPlanner.Solve(puzzle,
-                        new VoyagePlannerSettings(TimeLimitSeconds: timeLimitSetting));
+                    // Stop when the search stops improving, not on a clock: there is no point in
+                    // cutting off a search that is still finding better boards.
+                    var r = _voyageExactPlanner.Solve(puzzle, new VoyagePlannerSettings(
+                        TimeLimitSeconds: timeLimitSetting,
+                        PatienceSeconds: Settings.VoyageSettings.SolverPatienceSeconds.Value));
                     _result = r;
                     _voyageNodesExplored = r.NodesExplored;
                     _voyageNodesPruned = r.NodesPruned;
                     _voyageDiagnostics = _voyageExactPlanner.Diagnostics;
                     _voyageSearchIterations = _voyageExactPlanner.SearchIterations;
                     _voyageLastImprovement = _voyageExactPlanner.LastImprovementSeconds;
+                    _voyageConverged = _voyageExactPlanner.Converged;
                 }
                 else
                 {
@@ -523,9 +528,21 @@ public partial class DeepwaterEngagementSuiteGGRN
             if (_voyageStopwatch != null)
                 _voyageElapsed = _voyageStopwatch.Elapsed.TotalSeconds;
             ImGui.SameLine();
-            var timeLimitSetting = Settings.VoyageSettings.SolverTimeLimitSeconds.Value;
-            var progress = timeLimitSetting > 0 ? Math.Min(1f, (float)(_voyageElapsed / timeLimitSetting)) : 0.5f;
-            ImGui.ProgressBar(progress, default, $"{_voyageElapsed:F1}s");
+
+            // There is no meaningful percentage to show — the search runs until it stops improving
+            // — so report what it has actually found and how long since it last got better.
+            var live = _voyageExactPlanner;
+            if (live != null)
+            {
+                var idle = _voyageElapsed - Math.Max(live.LastImprovementSeconds, live.SearchStartedSeconds);
+                ImGui.Text(live.BestScoreSoFar > 0
+                    ? $"{_voyageElapsed:F1}s  best {live.BestScoreSoFar:F0}  (last gain {idle:F1}s ago)"
+                    : $"{_voyageElapsed:F1}s  building boards...");
+            }
+            else
+            {
+                ImGui.Text($"{_voyageElapsed:F1}s");
+            }
         }
 
         if (_result != null && _result.Solutions.Count > 0)
@@ -551,18 +568,18 @@ public partial class DeepwaterEngagementSuiteGGRN
             // out is the honest measure of whether this board is worth trusting as the best one.
             if (_voyageSearchIterations > 0 && !_voyageSolving)
             {
-                var limit = Settings.VoyageSettings.SolverTimeLimitSeconds.Value;
-                var idle = _voyageElapsed - _voyageLastImprovement;
-                if (_voyageLastImprovement <= 0 || idle > limit * 0.4)
+                var patience = Settings.VoyageSettings.SolverPatienceSeconds.Value;
+                if (_voyageConverged)
                 {
                     ImGui.TextColored(Color.Lime.ToImguiVec4(),
-                        $"Search settled: {_voyageSearchIterations:N0} rounds, nothing better for the last {idle:F1}s.");
+                        $"Converged: {_voyageSearchIterations:N0} rounds in {_voyageElapsed:F1}s, " +
+                        $"nothing better in the last {patience}s.");
                 }
                 else
                 {
                     ImGui.TextColored(Color.Orange.ToImguiVec4(),
-                        $"Still improving when time ran out (last gain at {_voyageLastImprovement:F1}s of {limit}s). " +
-                        "Raise the solver time limit for a better board.");
+                        $"Hit the hard limit at {_voyageElapsed:F0}s while still improving " +
+                        $"(last gain at {_voyageLastImprovement:F1}s). Raise it for a better board.");
                 }
             }
         }

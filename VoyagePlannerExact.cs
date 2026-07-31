@@ -33,8 +33,19 @@ public class VoyagePlannerExact
     /// </summary>
     private const int RefinementPasses = 3;
 
-    /// <summary>How many of the best boards get an exhaustive swap search on the true objective.</summary>
-    private const int PolishCount = 250;
+    /// <summary>
+    /// How many boards get the exhaustive swap search. Every candidate the pattern sweep produced
+    /// is polished, because that pass is deterministic and is what makes a solve reproducible —
+    /// cutting it short on a clock was why the same board could come back worth 8% less on a second
+    /// press of Solve. The cap only exists so a pathological pool cannot run away.
+    /// </summary>
+    private const int PolishCount = 4000;
+
+    /// <summary>How many boards the randomised stage keeps around to search from.</summary>
+    private const int SearchPoolSize = 250;
+
+    /// <summary>Relative gain that counts as progress worth extending the search for.</summary>
+    private const double MeaningfulGain = 0.001;
 
     /// <summary>
     /// A board shape that at least one assignment fits, kept so the search can start again from a
@@ -194,6 +205,21 @@ public class VoyagePlannerExact
 
     /// <summary>Seconds the search actually ran.</summary>
     public double ElapsedSeconds { get; private set; }
+
+    /// <summary>When the randomised search stage began, so patience is measured from there.</summary>
+    public double SearchStartedSeconds { get; private set; }
+
+    /// <summary>Best score found so far, updated live so a running solve can be watched.</summary>
+    public double BestScoreSoFar { get; private set; }
+
+    /// <summary>True when the solve ended because it stopped improving rather than running out of time.</summary>
+    public bool Converged { get; private set; }
+
+    /// <summary>
+    /// Best board the deterministic phase found, before the randomised search. Pressing Solve twice
+    /// on the same board always reaches at least this.
+    /// </summary>
+    public double DeterministicBest { get; private set; }
 
     public void Cancel() => _cancelled = true;
 
@@ -449,6 +475,8 @@ public class VoyagePlannerExact
             .ToList();
 
         var polishRandom = new Random(20260731);
+        // Deterministic phase: polish everything, interrupted only by the hard backstop. This is
+        // the reproducible floor the answer never drops below.
         var polished = new List<VoyageSolution>(candidates.Count);
         foreach (var candidate in candidates)
         {
@@ -462,11 +490,18 @@ public class VoyagePlannerExact
         }
 
         polished = polished.OrderByDescending(x => x.TotalScore).DistinctBy(GridSignature).ToList();
+        DeterministicBest = polished.Count > 0 ? polished[0].TotalScore : 0;
+        BestScoreSoFar = DeterministicBest;
+
+        polished = polished.OrderByDescending(x => x.TotalScore).DistinctBy(GridSignature).ToList();
         ShapeCount = shapes.Count;
         if (polished.Count > 0)
             polished = IteratedSearch(scorer, pieces, rotations, shapes, polished, requireConnected, settings, stopwatch);
 
         ElapsedSeconds = stopwatch.Elapsed.TotalSeconds;
+        Converged = !OutOfTime(settings, stopwatch) && !_cancelled;
+        if (polished.Count > 0)
+            BestScoreSoFar = polished[0].TotalScore;
 
         var top = polished
             .OrderByDescending(x => x.TotalScore)
@@ -620,8 +655,25 @@ public class VoyagePlannerExact
         return true;
     }
 
+    /// <summary>The hard backstop, which should normally never be what ends a solve.</summary>
     private static bool OutOfTime(VoyagePlannerSettings settings, Stopwatch stopwatch) =>
         settings.TimeLimitSeconds is > 0 && stopwatch.Elapsed.TotalSeconds >= settings.TimeLimitSeconds.Value;
+
+    /// <summary>
+    /// Whether the search has stopped paying for itself: either the backstop hit, or nothing better
+    /// has turned up for long enough that continuing is not worth the wait.
+    /// </summary>
+    private bool ShouldStopSearching(VoyagePlannerSettings settings, Stopwatch stopwatch)
+    {
+        if (_cancelled || OutOfTime(settings, stopwatch))
+            return true;
+
+        if (settings.PatienceSeconds is not > 0)
+            return false;
+
+        var since = stopwatch.Elapsed.TotalSeconds - Math.Max(LastImprovementSeconds, SearchStartedSeconds);
+        return since >= settings.PatienceSeconds.Value;
+    }
 
     /// <summary>
     /// Spends the remaining time budget escaping local optima: perturb a leading board by forcing a
@@ -668,7 +720,7 @@ public class VoyagePlannerExact
                 continue;
 
             var improved = Polish(scorer, pieces, candidate, requireConnected, random);
-            if (improved.TotalScore <= pool[^1].TotalScore && pool.Count >= PolishCount)
+            if (improved.TotalScore <= pool[^1].TotalScore && pool.Count >= SearchPoolSize)
                 continue;
 
             var previousBest = pool[0].TotalScore;
@@ -677,8 +729,18 @@ public class VoyagePlannerExact
             if (pool.Count > PolishCount)
                 pool.RemoveRange(PolishCount, pool.Count - PolishCount);
 
-            if (pool[0].TotalScore > previousBest + 1e-9)
+            // Only a gain worth waiting for resets the patience clock. The search dribbles out
+            // fractions of a point indefinitely, and treating those as progress means it never
+            // stops.
+            if (pool[0].TotalScore > previousBest * (1 + MeaningfulGain))
+            {
                 LastImprovementSeconds = stopwatch.Elapsed.TotalSeconds;
+                BestScoreSoFar = pool[0].TotalScore;
+            }
+            else if (pool[0].TotalScore > BestScoreSoFar)
+            {
+                BestScoreSoFar = pool[0].TotalScore;
+            }
         }
 
         return pool;

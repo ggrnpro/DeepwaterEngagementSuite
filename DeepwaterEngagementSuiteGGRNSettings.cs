@@ -354,11 +354,19 @@ public class VoyageSettings
     [Menu("Show optimizer window")]
     public ToggleNode ShowOptimizerWindow { get; set; } = new ToggleNode(true);
 
-    // Modelling a chart's own quantity made placement quadratic, so the last stretch of the search
-    // is randomised rather than exact and genuinely benefits from more time: on a 43-chart tray the
-    // best board kept improving up to about a minute.
-    [Menu("Solver time limit (seconds)", "How long the solver searches. Longer finds better boards; the window reports whether it was still improving when time ran out.")]
-    public RangeNode<int> SolverTimeLimitSeconds { get; set; } = new RangeNode<int>(20, 1, 120);
+    // Modelling a chart's own quantity made placement quadratic, so there is no moment where the
+    // answer is provably final. Stopping on a clock was arbitrary and cut good searches short, so
+    // the solver runs until it stops finding better boards instead.
+    [Menu("Stop after seconds without improvement",
+        "The solver keeps searching while it keeps finding better boards, and stops once this long " +
+        "has passed with no improvement. It runs on a background thread, so a long search does not " +
+        "block the game.")]
+    public RangeNode<int> SolverPatienceSeconds { get; set; } = new RangeNode<int>(15, 1, 120);
+
+    [Menu("Hard limit (seconds)",
+        "Backstop so a solve cannot run forever. Reaching it means the search was still improving, " +
+        "which the window says so you can raise it.")]
+    public RangeNode<int> SolverTimeLimitSeconds { get; set; } = new RangeNode<int>(300, 5, 900);
 
     // exact second solver, opt-in until it's proven in game; ignores per-connection borders for now
     [Menu("Use fast solver (exact, experimental)", "Exact branch-and-bound solver. Ignores the time limit. Per-connection border mods are ignored for now, so scores on those boards are approximate.")]
