@@ -388,6 +388,23 @@ public class VoyageSettings
     [Menu("Gold weight", "Gold is worth little to a currency-focused run.")]
     public RangeNode<float> GoldWeight { get; set; } = new RangeNode<float>(0.2f, 0f, 2f);
 
+    // Golden Lanterns buff the rest of the run once collected, so the order they are picked up in
+    // is what decides how much of the voyage benefits.
+    [Menu("Show Golden Lantern route",
+        "Draws a numbered chain through every Golden Lantern in range, in the order that walks the " +
+        "shortest total distance. Take them early: each one raises quantity and rarity for the rest " +
+        "of the voyage.")]
+    public ToggleNode ShowLanternRoute { get; set; } = new ToggleNode(true);
+
+    [Menu("Lantern route colour")]
+    public ColorNode LanternRouteColor { get; set; } = new ColorNode(SharpDX.Color.Gold);
+
+    [Menu("Lantern route line width")]
+    public RangeNode<int> LanternRouteWidth { get; set; } = new RangeNode<int>(2, 1, 8);
+
+    [Menu("Lantern route max distance", "Ignore lanterns further than this from the player. 0 = no limit.")]
+    public RangeNode<int> LanternRouteMaxDistance { get; set; } = new RangeNode<int>(0, 0, 2000);
+
     [Menu("Show reroll advice", "Compares the current board against every board you have solved before.")]
     public ToggleNode ShowRerollAdvice { get; set; } = new ToggleNode(true);
 

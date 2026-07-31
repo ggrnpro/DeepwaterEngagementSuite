@@ -45,6 +45,7 @@ public partial class DeepwaterEngagementSuiteGGRN
                 hash = area?.Hash,
                 isHideout = area?.IsHideout,
                 stats = CollectTrackedStats(),
+                buffs = CollectBuffs(),
             });
         }
         catch (Exception ex)
@@ -74,8 +75,11 @@ public partial class DeepwaterEngagementSuiteGGRN
             if (stats == null || stats.Count == 0)
                 return;
 
+            var buffSignature = string.Join(",", (CollectBuffs() ?? [])
+                .Select(x => x.ToString())
+                .OrderBy(x => x, StringComparer.Ordinal));
             var signature = string.Join(";", stats.OrderBy(kv => kv.Key, StringComparer.Ordinal)
-                .Select(kv => $"{kv.Key}={kv.Value}"));
+                .Select(kv => $"{kv.Key}={kv.Value}")) + "|" + buffSignature;
             if (signature == _lastVoyageStatSignature)
                 return;
 
@@ -84,11 +88,36 @@ public partial class DeepwaterEngagementSuiteGGRN
             {
                 area = _currentAreaName,
                 stats,
+                buffs = CollectBuffs(),
             });
         }
         catch (Exception ex)
         {
             DebugWindow.LogError($"DWS debug: stat capture failed: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// The player's buffs. Golden Lantern pickups do not show up in the stats sampled above, so the
+    /// bonus they grant is most likely carried as a buff — quite possibly a stacking one.
+    /// </summary>
+    private List<object> CollectBuffs()
+    {
+        try
+        {
+            var buffs = GameController?.Player?.GetComponent<Buffs>()?.BuffsList;
+            if (buffs == null)
+                return null;
+
+            var result = new List<object>();
+            foreach (var buff in buffs)
+                result.Add(new { buff.Name, buff.Charges, timer = buff.Timer });
+
+            return result;
+        }
+        catch
+        {
+            return null;
         }
     }
 

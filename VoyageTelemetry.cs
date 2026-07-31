@@ -42,6 +42,8 @@ public sealed class VoyageTelemetry : IDisposable
 
     private readonly ConcurrentDictionary<string, UnknownMod> _unknown = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<string, object> _modRecords = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, int> _entityPaths = new(StringComparer.OrdinalIgnoreCase);
+    private DateTime _lastEntityFlush = DateTime.MinValue;
     private readonly Thread _writer;
     private DateTime _lastUnknownFlush = DateTime.MinValue;
 
@@ -52,6 +54,7 @@ public sealed class VoyageTelemetry : IDisposable
         EventLogPath = Path.Combine(directory, "events.ndjson");
         UnknownModsPath = Path.Combine(directory, "unknown-mods.json");
         ModRecordsPath = Path.Combine(directory, "mod-records.json");
+        EntityCensusPath = Path.Combine(directory, "voyage-entities.json");
 
         _writer = new Thread(WriterLoop)
         {
@@ -65,6 +68,7 @@ public sealed class VoyageTelemetry : IDisposable
     public string EventLogPath { get; }
     public string UnknownModsPath { get; }
     public string ModRecordsPath { get; }
+    public string EntityCensusPath { get; }
 
     /// <summary>Number of events dropped because the writer could not keep up (should stay 0).</summary>
     public int DroppedEvents { get; private set; }
@@ -140,6 +144,36 @@ public sealed class VoyageTelemetry : IDisposable
             return;
 
         Enqueue(ModRecordsPath, JsonConvert.SerializeObject(_modRecords, SnapshotSettings), append: false);
+    }
+
+    /// <summary>
+    /// Counts the metadata paths of entities seen inside a voyage. Which path a Golden Lantern uses
+    /// is not documented anywhere, and the pointer cannot aim at what it cannot name.
+    /// </summary>
+    public void NoteEntity(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+            return;
+
+        _entityPaths.AddOrUpdate(path, 1, (_, count) => count + 1);
+
+        if (DateTime.UtcNow - _lastEntityFlush < TimeSpan.FromSeconds(15))
+            return;
+
+        _lastEntityFlush = DateTime.UtcNow;
+        FlushEntities();
+    }
+
+    public void FlushEntities()
+    {
+        if (_entityPaths.IsEmpty)
+            return;
+
+        var ordered = _entityPaths
+            .OrderByDescending(x => x.Value)
+            .ThenBy(x => x.Key, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(x => x.Key, x => x.Value);
+        Enqueue(EntityCensusPath, JsonConvert.SerializeObject(ordered, SnapshotSettings), append: false);
     }
 
     public void FlushUnknown()
@@ -285,6 +319,7 @@ public sealed class VoyageTelemetry : IDisposable
     public void Dispose()
     {
         FlushUnknown();
+        FlushEntities();
         _queue.CompleteAdding();
         _writer.Join(TimeSpan.FromSeconds(2));
         _queue.Dispose();
