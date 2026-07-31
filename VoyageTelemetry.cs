@@ -155,9 +155,12 @@ public sealed class VoyageTelemetry : IDisposable
     }
 
     /// <summary>
-    /// Shallow reflection dump of an object's readable properties. Used to discover what the game
-    /// actually exposes without guessing at API shapes; failures on individual properties are
+    /// Shallow reflection dump of an object's readable members. Used to discover what the game
+    /// actually exposes without guessing at API shapes; failures on individual members are
     /// swallowed and reported inline.
+    ///
+    /// Fields are walked as well as properties: some ExileCore types (ItemStats among them) expose
+    /// their contents as fields, and a property-only dump makes them look empty.
     /// </summary>
     public static Dictionary<string, object> Describe(object obj, int depth = 1)
     {
@@ -185,6 +188,21 @@ public sealed class VoyageTelemetry : IDisposable
             }
 
             result[prop.Name] = Simplify(value, depth);
+        }
+
+        foreach (var field in type.GetFields(BindingFlags.Public | BindingFlags.Instance))
+        {
+            if (result.ContainsKey(field.Name))
+                continue;
+
+            try
+            {
+                result[field.Name] = Simplify(field.GetValue(obj), depth);
+            }
+            catch (Exception ex)
+            {
+                result[field.Name] = $"<error: {ex.GetBaseException().Message}>";
+            }
         }
 
         return result;

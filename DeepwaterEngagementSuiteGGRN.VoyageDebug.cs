@@ -159,12 +159,23 @@ public partial class DeepwaterEngagementSuiteGGRN
 
         Direction connections = 0;
         int? rotation = null;
+        string roomId = null;
+        string roomName = null;
+        string biomeId = null;
+        string biomeArea = null;
         try
         {
             if (chart != null)
             {
                 connections = (Direction)chart.Room.Path;
                 rotation = chart.Rotation;
+
+                // The room is the area this chart opens — its name is the special area
+                // ("Kishara's Rest", "Anchorfield"), which is where a lot of a chart's value sits.
+                roomId = chart.Room.Id;
+                roomName = chart.Room.Name;
+                biomeId = chart.Room.Biome?.Id;
+                biomeArea = chart.Room.Biome?.WorldArea?.Name;
             }
         }
         catch
@@ -184,6 +195,10 @@ public partial class DeepwaterEngagementSuiteGGRN
             connections = connections.ToString(),
             connectionCount = connections.CountConnections(),
             rotation,
+            roomId,
+            roomName,
+            biomeId,
+            biomeArea,
             stats = SafeStats(mods),
             implicitMods = (mods?.ImplicitMods ?? []).Select(DescribeMod).ToList(),
             explicitMods = (mods?.ExplicitMods ?? []).Select(DescribeMod).ToList(),
