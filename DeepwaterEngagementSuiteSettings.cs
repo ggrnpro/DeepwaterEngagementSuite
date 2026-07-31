@@ -360,6 +360,20 @@ public class VoyageSettings
     // exact second solver, opt-in until it's proven in game; ignores per-connection borders for now
     [Menu("Use fast solver (exact, experimental)", "Exact branch-and-bound solver. Ignores the time limit. Per-connection border mods are ignored for now, so scores on those boards are approximate.")]
     public ToggleNode UseFastSolver { get; set; } = new ToggleNode(false);
+
+    [Menu("Use assignment solver (exact, recommended)",
+        "Fixes the board's connection pattern first, then solves chart placement as a linear assignment problem. " +
+        "Exact, handles per-connection borders, and finishes in milliseconds instead of hitting the time limit. " +
+        "When no fully connected board is possible it shows the best disconnected one and explains why.")]
+    public ToggleNode UseAssignmentSolver { get; set; } = new ToggleNode(true);
+
+    [Menu("Write debug dumps",
+        "Records the voyage board, every chart's stats and modifiers, and every solver run under " +
+        "config/DeepwaterEngagementSuite/debug. Board changes (including rerolls) are captured automatically.")]
+    public ToggleNode EnableDebugDump { get; set; } = new ToggleNode(true);
+
+    [Menu("Snapshot hotkey", "Writes a full JSON snapshot of the current voyage window and the latest solver result.")]
+    public HotkeyNodeV2 DumpSnapshotHotkey { get; set; } = new HotkeyNodeV2(Keys.F9);
     public RangeNode<float> BorderHighlightThreshold { get; set; } = new RangeNode<float>(1.01f, 0, 10);
     public RangeNode<float> ChartHighlightThreshold { get; set; } = new RangeNode<float>(1.0f, 0, 10);
     public ListNode ProfileSelector { get; set; } = new ListNode();

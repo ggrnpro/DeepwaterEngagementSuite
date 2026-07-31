@@ -35,7 +35,8 @@ public class VoyageScorer
 
     private static readonly (int Dr, int Dc)[] NeighborOffsets = [(1, 0), (-1, 0), (0, -1), (0, 1)];
 
-    private readonly record struct ModEntry(int MaskIdx, double Weight);
+    /// <summary>A piece's modifiers of one scope (local/global), collapsed to one entry per tag mask.</summary>
+    public readonly record struct ModEntry(int MaskIdx, double Weight);
 
     private readonly int _maskCount;
     private readonly Dictionary<MapPiece, int> _pieceIndex = new();
@@ -360,6 +361,40 @@ public class VoyageScorer
 
     /// <summary>Borders touching the given tile (for display).</summary>
     public IReadOnlyList<BorderEffect> BordersAt(int row, int col) => _bordersByCell[row * GridSize + col];
+
+    // --- Accessors used by the exact (assignment-based) planner --------------------------------
+    // The planner fixes the board's connection pattern first, which turns every multiplier below
+    // into a constant, so it can reuse these tables instead of duplicating the scoring model.
+
+    /// <summary>Number of distinct tag masks appearing on any chart modifier.</summary>
+    public int MaskCount => _maskCount;
+
+    /// <summary>Multiplier applied to rewards landing on <paramref name="cell"/> from tag mask <paramref name="maskIdx"/>.</summary>
+    public double TileMultiplier(int cell, int maskIdx, int connections) => _tileMult[cell][maskIdx][connections];
+
+    /// <summary>Multiplier applied to the modifiers carried by the chart placed on <paramref name="cell"/>.</summary>
+    public double ChartMultiplier(int cell, int maskIdx, int connections) => _chartMult[cell][maskIdx][connections];
+
+    /// <summary>
+    /// Whether any border on this tile is per-connection, i.e. whether the tile's multipliers
+    /// actually change with the connection count of the chart placed there.
+    /// </summary>
+    public bool IsConnectionSensitive(int cell)
+    {
+        foreach (var b in _bordersByCell[cell])
+        {
+            if (b.PerConnection)
+                return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>The piece's adjacent-scope modifiers, one entry per tag mask.</summary>
+    public IReadOnlyList<ModEntry> LocalMods(int pieceIdx) => _localEntries[pieceIdx];
+
+    /// <summary>The piece's voyage-scope (global) modifiers, one entry per tag mask.</summary>
+    public IReadOnlyList<ModEntry> GlobalMods(int pieceIdx) => _globalEntries[pieceIdx];
 
     /// <summary>
     /// Full per-tile justification of a completed grid's score. For each tile, lists every

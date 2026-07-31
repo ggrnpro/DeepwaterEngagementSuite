@@ -35,6 +35,8 @@ public partial class DeepwaterEngagementSuite
     private long _voyageNodesPruned;
     private double _voyageElapsed;
     private System.Diagnostics.Stopwatch _voyageStopwatch;
+    private VoyagePlannerExact _voyageExactPlanner;
+    private string _voyageDiagnostics;
 
     public List<NormalInventoryItem> GetAvailableCharts()
     {
@@ -231,6 +233,10 @@ public partial class DeepwaterEngagementSuite
 
         TaskUtils.RunOrRestart(ref _voyagePlaceTask, () => null);
 
+        TrackVoyageBoard(tree);
+        if (Settings.VoyageSettings.DumpSnapshotHotkey.PressedOnce())
+            DumpVoyageSnapshot(tree, "manual");
+
         var modsPerTileIndex = GetTileMods(tree);
 
         var tiles = tree.Tiles;
@@ -414,41 +420,60 @@ public partial class DeepwaterEngagementSuite
                 _uiScorer = new VoyageScorer(puzzle);
                 var timeLimitSetting = Settings.VoyageSettings.SolverTimeLimitSeconds.Value;
 
-                // fast solver ignores per-connection borders for now; still exact for everything else
-                IEnumerable<VoyageSolutionResult> results;
-                if (Settings.VoyageSettings.UseFastSolver.Value)
+                if (Settings.VoyageSettings.UseAssignmentSolver.Value)
                 {
                     _voyagePlanner = null;
-                    results = new VoyagePlannerFast().Solve(puzzle,
+                    _voyageExactPlanner = new VoyagePlannerExact();
+                    var r = _voyageExactPlanner.Solve(puzzle,
                         new VoyagePlannerSettings(TimeLimitSeconds: timeLimitSetting));
-                }
-                else
-                {
-                    _voyagePlanner = new VoyagePlanner();
-                    results = _voyagePlanner.Solve(puzzle,
-                        new VoyagePlannerSettings(TimeLimitSeconds: timeLimitSetting));
-                }
-
-                foreach (var r in results)
-                {
                     _result = r;
                     _voyageNodesExplored = r.NodesExplored;
                     _voyageNodesPruned = r.NodesPruned;
+                    _voyageDiagnostics = _voyageExactPlanner.Diagnostics;
+                }
+                else
+                {
+                    // fast solver ignores per-connection borders for now; still exact for everything else
+                    _voyageExactPlanner = null;
+                    _voyageDiagnostics = null;
+                    IEnumerable<VoyageSolutionResult> results;
+                    if (Settings.VoyageSettings.UseFastSolver.Value)
+                    {
+                        _voyagePlanner = null;
+                        results = new VoyagePlannerFast().Solve(puzzle,
+                            new VoyagePlannerSettings(TimeLimitSeconds: timeLimitSetting));
+                    }
+                    else
+                    {
+                        _voyagePlanner = new VoyagePlanner();
+                        results = _voyagePlanner.Solve(puzzle,
+                            new VoyagePlannerSettings(TimeLimitSeconds: timeLimitSetting));
+                    }
+
+                    foreach (var r in results)
+                    {
+                        _result = r;
+                        _voyageNodesExplored = r.NodesExplored;
+                        _voyageNodesPruned = r.NodesPruned;
+                    }
                 }
 
-                if (_voyageStopwatch.Elapsed.TotalSeconds >= timeLimitSetting)
+                _voyageElapsed = _voyageStopwatch.Elapsed.TotalSeconds;
+                if (_voyageElapsed >= timeLimitSetting)
                     _voyageTimedOut = true;
 
                 _voyageSolving = false;
+                LogVoyageSolve(puzzle, timeLimitSetting);
             });
         }
 
-        if (_voyagePlanner != null && _voyageSolving)
+        if ((_voyagePlanner != null || _voyageExactPlanner != null) && _voyageSolving)
         {
             ImGui.SameLine();
             if (ImGui.Button("Cancel"))
             {
                 _voyagePlanner?.Cancel();
+                _voyageExactPlanner?.Cancel();
             }
         }
 
@@ -496,8 +521,18 @@ public partial class DeepwaterEngagementSuite
                 ImGui.TextColored(Color.Gray.ToImguiVec4(), "No solutions yet. Press Solve.");
             }
 
+            if (!string.IsNullOrEmpty(_voyageDiagnostics))
+            {
+                ImGui.TextWrapped(_voyageDiagnostics);
+            }
+
             ImGui.End();
             return;
+        }
+
+        if (!string.IsNullOrEmpty(_voyageDiagnostics))
+        {
+            ImGui.TextColored(Color.Orange.ToImguiVec4(), _voyageDiagnostics);
         }
 
         if (_voyageTimedOut)
