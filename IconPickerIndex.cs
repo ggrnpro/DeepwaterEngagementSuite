@@ -29,12 +29,6 @@ public enum IconPickerIndex
     LanternReplenishEncounter,
     GoldenLanternEncounter,
     InfusedCoralEncounter,
-    /// <summary>Dead Man's Sulphur resource piles, by size. Sulphur is half of what a run is for.</summary>
-    SulphurChestSmall,
-    SulphurChest,
-    SulphurChestLarge,
-    SulphurChestHuge,
-    TreasureAnchor,
     StrongboxDivination,
     StrongboxScarab,
     StrongboxArcanist,

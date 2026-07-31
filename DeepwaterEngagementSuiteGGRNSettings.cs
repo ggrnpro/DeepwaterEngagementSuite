@@ -82,11 +82,6 @@ public class DeepwaterEngagementSuiteSettings : ISettings
         IconPickerIndex.TormentedSpiritEncounter => DefaultTormentedSpiritEncounterIcon,
         IconPickerIndex.LanternReplenishEncounter => DefaultLanternReplenishEncounterIcon,
         IconPickerIndex.GoldenLanternEncounter => MapIconsIndex.LabyrinthGoldKey,
-        IconPickerIndex.SulphurChestHuge => MapIconsIndex.LootFilterLargeGreenStar,
-        IconPickerIndex.SulphurChestLarge => MapIconsIndex.LootFilterLargeGreenCircle,
-        IconPickerIndex.SulphurChest => MapIconsIndex.LootFilterSmallGreenCircle,
-        IconPickerIndex.SulphurChestSmall => MapIconsIndex.LootFilterSmallGreenCircle,
-        IconPickerIndex.TreasureAnchor => MapIconsIndex.RewardChestGeneric,
         IconPickerIndex.InfusedCoralEncounter => MapIconsIndex.RewardBreach,
         IconPickerIndex.StrongboxDivination => MapIconsIndex.CorpseTypeUndead,
         IconPickerIndex.StrongboxScarab => MapIconsIndex.CorpseTypeEldritch,
@@ -362,16 +357,16 @@ public class VoyageSettings
     // Modelling a chart's own quantity made placement quadratic, so there is no moment where the
     // answer is provably final. Stopping on a clock was arbitrary and cut good searches short, so
     // the solver runs until it stops finding better boards instead.
-    [Menu("Stop after seconds without improvement",
+    [Menu("Stop after seconds without improvement (v2)",
         "The solver keeps searching while it keeps finding better boards, and stops once this long " +
         "has passed with no improvement. It runs on a background thread, so a long search does not " +
         "block the game.")]
-    public RangeNode<int> SolverPatienceSeconds { get; set; } = new RangeNode<int>(15, 1, 120);
+    public RangeNode<int> SolverPatience { get; set; } = new RangeNode<int>(12, 1, 120);
 
     [Menu("Hard limit (seconds)",
         "Backstop so a solve cannot run forever. Reaching it means the search was still improving, " +
         "which the window says so you can raise it.")]
-    public RangeNode<int> SolverTimeLimitSeconds { get; set; } = new RangeNode<int>(300, 5, 900);
+    public RangeNode<int> SolverHardLimit { get; set; } = new RangeNode<int>(60, 5, 900);
 
     // exact second solver, opt-in until it's proven in game; ignores per-connection borders for now
     [Menu("Use fast solver (exact, experimental)", "Exact branch-and-bound solver. Ignores the time limit. Per-connection border mods are ignored for now, so scores on those boards are approximate.")]
@@ -421,7 +416,7 @@ public class VoyageSettings
 
     [Menu("Area values", "What each destination area is worth on its own, before anything neighbours add. " +
         "Named areas carry their own encounter; plain biome rooms are worth nothing extra. " +
-        "Starting estimates — edit them as you learn what the areas really drop.")]
+        "Starting estimates - edit them as you learn what the areas really drop.")]
     public ContentNode<VoyageAreaSetting> AreaValues { get; set; } = new ContentNode<VoyageAreaSetting>
     {
         EnableControls = true,

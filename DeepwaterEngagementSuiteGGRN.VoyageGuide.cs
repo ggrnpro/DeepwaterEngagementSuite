@@ -53,12 +53,9 @@ public partial class DeepwaterEngagementSuiteGGRN
         IconPickerIndex.StrongboxDivination => 85,
         IconPickerIndex.ScarabChest => 80,
         IconPickerIndex.StrongboxScarab => 75,
-        IconPickerIndex.TreasureAnchor => 75,
-        IconPickerIndex.SulphurChestHuge => 70,
         IconPickerIndex.InfusedCoralEncounter => 70,
         IconPickerIndex.UniqueWeaponChest => 55,
         IconPickerIndex.UniqueArmourChest => 55,
-        IconPickerIndex.SulphurChestLarge => 45,
         IconPickerIndex.CursedDucatDrop => 45,
         IconPickerIndex.RandomDucatChest => 45,
         IconPickerIndex.IzaroObject => 45,
@@ -68,10 +65,8 @@ public partial class DeepwaterEngagementSuiteGGRN
         IconPickerIndex.AltarOctopus => 30,
         IconPickerIndex.ClamTreasureChest => 25,
         IconPickerIndex.TormentedSpiritEncounter => 25,
-        IconPickerIndex.SulphurChest => 20,
         IconPickerIndex.BottledItemChest => 20,
         IconPickerIndex.GoldTreasureChest => 15,
-        IconPickerIndex.SulphurChestSmall => 10,
         _ => 0,
     };
 
@@ -188,7 +183,7 @@ public partial class DeepwaterEngagementSuiteGGRN
         if (lanternsLeft > 0)
         {
             ImGui.TextColored(settings.LanternRouteColor.Value.ToImguiVec4(),
-                $"{lanternsLeft} Golden Lantern(s) still out — take these first, they buff the rest of the run.");
+                $"{lanternsLeft} Golden Lantern(s) still out - take these first, they buff the rest of the run.");
         }
 
         if (ImGui.BeginTable("guide", 3, ImGuiTableFlags.Borders | ImGuiTableFlags.SizingStretchProp))

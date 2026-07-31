@@ -458,7 +458,7 @@ public partial class DeepwaterEngagementSuiteGGRN
                     Settings.VoyageSettings.SulphurWeight.Value,
                     Settings.VoyageSettings.GoldWeight.Value));
                 _uiScorer = new VoyageScorer(puzzle);
-                var timeLimitSetting = Settings.VoyageSettings.SolverTimeLimitSeconds.Value;
+                var timeLimitSetting = Settings.VoyageSettings.SolverHardLimit.Value;
 
                 if (Settings.VoyageSettings.UseAssignmentSolver.Value)
                 {
@@ -468,7 +468,7 @@ public partial class DeepwaterEngagementSuiteGGRN
                     // cutting off a search that is still finding better boards.
                     var r = _voyageExactPlanner.Solve(puzzle, new VoyagePlannerSettings(
                         TimeLimitSeconds: timeLimitSetting,
-                        PatienceSeconds: Settings.VoyageSettings.SolverPatienceSeconds.Value));
+                        PatienceSeconds: Settings.VoyageSettings.SolverPatience.Value));
                     _result = r;
                     _voyageNodesExplored = r.NodesExplored;
                     _voyageNodesPruned = r.NodesPruned;
@@ -568,7 +568,7 @@ public partial class DeepwaterEngagementSuiteGGRN
             // out is the honest measure of whether this board is worth trusting as the best one.
             if (_voyageSearchIterations > 0 && !_voyageSolving)
             {
-                var patience = Settings.VoyageSettings.SolverPatienceSeconds.Value;
+                var patience = Settings.VoyageSettings.SolverPatience.Value;
                 if (_voyageConverged)
                 {
                     ImGui.TextColored(Color.Lime.ToImguiVec4(),
@@ -752,7 +752,7 @@ public partial class DeepwaterEngagementSuiteGGRN
             var total = rows.Sum(x => x.Value);
 
             ImGui.PushID($"detail{i}");
-            var open = ImGui.TreeNode("node", $"({r},{c}) #{placement.Piece.Id} {placement.Piece.Type} — {total:F1}");
+            var open = ImGui.TreeNode("node", $"({r},{c}) #{placement.Piece.Id} {placement.Piece.Type} - {total:F1}");
             if (open)
             {
                 var borders = _uiScorer.BordersAt(r, c);

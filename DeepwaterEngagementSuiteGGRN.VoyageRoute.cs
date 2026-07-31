@@ -189,7 +189,7 @@ public partial class DeepwaterEngagementSuiteGGRN
         }
         else
         {
-            ImGui.TextDisabled("No Golden Lantern value on this board — any legal order pays the same.");
+            ImGui.TextDisabled("No Golden Lantern value on this board - any legal order pays the same.");
         }
 
         ImGui.TextDisabled("Entry is the bottom-left room (0,0). The per-lantern bonus is an estimate; tune it in settings.");

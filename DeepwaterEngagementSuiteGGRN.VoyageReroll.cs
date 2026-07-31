@@ -146,7 +146,7 @@ public partial class DeepwaterEngagementSuiteGGRN
         if (history.Count < 5)
         {
             ImGui.TextDisabled($"Only {history.Count} boards recorded. Need more solved boards before " +
-                               "this board can be placed in a distribution — keep solving and rerolling.");
+                               "this board can be placed in a distribution - keep solving and rerolling.");
             ImGui.TreePop();
             return;
         }
@@ -169,13 +169,13 @@ public partial class DeepwaterEngagementSuiteGGRN
         if (percentile < threshold)
         {
             ImGui.TextColored(Color.Lime.ToImguiVec4(),
-                $"REROLL — this board is in the bottom {threshold:F0}% of what you have seen, " +
+                $"REROLL - this board is in the bottom {threshold:F0}% of what you have seen, " +
                 $"and the reroll costs {costDivines:F3} div.");
         }
         else
         {
             ImGui.TextColored(Color.Orange.ToImguiVec4(),
-                $"KEEP — this board beats {percentile:F0}% of the boards you have seen.");
+                $"KEEP - this board beats {percentile:F0}% of the boards you have seen.");
         }
 
         ImGui.TextDisabled("Gain is in score units, not currency: what a point of score is worth in " +
