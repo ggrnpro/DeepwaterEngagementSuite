@@ -415,11 +415,11 @@ public class VoyageSettings
     public ToggleNode ShowObjectiveGuide { get; set; } = new ToggleNode(true);
 
     [Menu("Send me to Golden Lanterns first",
-        "Routes through every Golden Lantern before anything else. This assumes the bonus lasts the " +
-        "rest of the voyage. Telemetry from a real run shows the deepwater_golden_lantern buff " +
-        "lasting under half a minute and stacking to two, which would mean the opposite: grab one " +
-        "next to a dense pack, not on the way in. Turn this off to rank lanterns by value like " +
-        "anything else.")]
+        "Routes through every Golden Lantern before anything else. Measured in game: the " +
+        "deepwater_golden_lantern buff carries no timer at all, gains one stack per lantern, and " +
+        "only ends with the area - six stacks were held for over seven minutes. So every lantern " +
+        "taken early raises everything found for the rest of the run, and taking them first is " +
+        "worth the walk.")]
     public ToggleNode PrioritiseLanterns { get; set; } = new ToggleNode(true);
 
     [Menu("Show guide list", "A small window listing the next targets in order.")]
