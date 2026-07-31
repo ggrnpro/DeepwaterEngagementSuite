@@ -388,6 +388,17 @@ public class VoyageSettings
     [Menu("Gold weight", "Gold is worth little to a currency-focused run.")]
     public RangeNode<float> GoldWeight { get; set; } = new RangeNode<float>(0.2f, 0f, 2f);
 
+    [Menu("Area values", "What each destination area is worth on its own, before anything neighbours add. " +
+        "Named areas carry their own encounter; plain biome rooms are worth nothing extra. " +
+        "Starting estimates — edit them as you learn what the areas really drop.")]
+    public ContentNode<VoyageAreaSetting> AreaValues { get; set; } = new ContentNode<VoyageAreaSetting>
+    {
+        EnableControls = true,
+        EnableItemCollapsing = true,
+        ItemFactory = () => new VoyageAreaSetting(),
+        ItemFilter = (o, s) => o.Area.Value.Contains(s, StringComparison.OrdinalIgnoreCase),
+    };
+
     // Golden Lanterns buff the rest of the run once collected, so the order they are picked up in
     // is what decides how much of the voyage benefits.
     [Menu("Show Golden Lantern route",
@@ -595,4 +606,18 @@ public enum SearchState
     Empty,
     Searching,
     Stopped,
+}
+
+
+[Submenu(CollapsedByDefault = true)]
+public class VoyageAreaSetting
+{
+    [Menu(null, "Area name exactly as the chart shows it, e.g. \"Kishara's Rest\".")]
+    public TextNode Area { get; set; } = new TextNode("");
+
+    [Menu(null, "Value produced in this area itself, on the same scale as chart modifier weights.")]
+    public RangeNode<float> Weight { get; set; } = new RangeNode<float>(0, 0, 2000);
+
+    [Menu(null, "Comma-separated reward categories this area's value belongs to; empty means untagged.")]
+    public TextNode Tags { get; set; } = new TextNode("");
 }

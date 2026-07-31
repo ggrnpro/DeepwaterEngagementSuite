@@ -591,6 +591,16 @@ public class VoyagePlannerExact
                              * voyageMult[e.MaskIdx];
                 }
 
+                // The area this chart opens. Both its own multiplier and the tile's borders are
+                // known here, so this stays linear in (chart, tile) and needs no estimate.
+                foreach (var e in scorer.SelfMods(pieceIdx))
+                {
+                    value += e.Weight
+                             * scorer.TileMultiplier(cell, e.MaskIdx, conn[cell])
+                             * scorer.SelfMultiplier(pieceIdx, e.MaskIdx)
+                             * voyageMult[e.MaskIdx];
+                }
+
                 // What this chart's own quantity, rarity and pack size add to whatever arrives on
                 // the tile it takes. Splitting it out this way counts each delivery exactly once.
                 var incoming = rawIncoming[cell];

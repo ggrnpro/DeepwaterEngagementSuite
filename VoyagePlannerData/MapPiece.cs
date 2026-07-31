@@ -17,6 +17,11 @@ public enum PieceType
 /// and Dead Man's Sulphur. They scale everything that drops there, including content neighbouring
 /// charts put in the area.
 /// </param>
+/// <param name="SelfModifiers">
+/// Value that materialises in this chart's own area rather than being delivered to neighbours —
+/// the area it opens. A plain "Abyssal Plain" is worth little; "Kishara's Rest" is a boss encounter
+/// and worth a great deal, and nothing else in the model captures that difference.
+/// </param>
 /// <param name="VoyageStats">
 /// Reward stats this chart projects over every area of the voyage, from its voyage-scope implicit.
 /// Unlike <paramref name="SelfStats"/> these do not depend on where the chart is placed.
@@ -27,7 +32,8 @@ public record MapPiece(
     Direction BaseConnections,
     List<Modifier> Modifiers,
     ChartRewardStats SelfStats = default,
-    ChartRewardStats VoyageStats = default)
+    ChartRewardStats VoyageStats = default,
+    List<Modifier> SelfModifiers = null)
 {
     public readonly double GlobalModifier = Modifiers.Where(x => x.IsGlobal).Sum(x => x.Weight);
     public readonly double LocalModifier = Modifiers.Where(x => !x.IsGlobal).Sum(x => x.Weight);

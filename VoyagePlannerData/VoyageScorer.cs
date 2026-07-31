@@ -52,6 +52,9 @@ public class VoyageScorer
     private readonly ModEntry[][] _localEntries;
     private readonly ModEntry[][] _globalEntries;
 
+    // Per piece: value landing in the chart's own area, which no other channel carries.
+    private readonly ModEntry[][] _selfEntries;
+
     // Per piece: upper bound on total global-mod value if placed anywhere.
     private readonly double[] _pieceGlobalUpperBound;
 
@@ -97,7 +100,7 @@ public class VoyageScorer
 
         // Index the distinct tag masks that appear on any modifier.
         var maskIndex = new Dictionary<ModifierTag, int>();
-        foreach (var mod in pieces.SelectMany(p => p.Modifiers))
+        foreach (var mod in pieces.SelectMany(p => p.Modifiers.Concat(p.SelfModifiers ?? [])))
         {
             if (!maskIndex.ContainsKey(mod.Tags))
                 maskIndex[mod.Tags] = maskIndex.Count;
@@ -174,6 +177,7 @@ public class VoyageScorer
         // Per-piece modifier entries, grouped by tag mask.
         _localEntries = new ModEntry[pieces.Count][];
         _globalEntries = new ModEntry[pieces.Count][];
+        _selfEntries = new ModEntry[pieces.Count][];
         _pieceGlobalUpperBound = new double[pieces.Count];
         for (var i = 0; i < pieces.Count; i++)
         {
@@ -181,6 +185,7 @@ public class VoyageScorer
             _pieceIndex[piece] = i;
             _localEntries[i] = BuildEntries(piece.Modifiers, maskIndex, isGlobal: false);
             _globalEntries[i] = BuildEntries(piece.Modifiers, maskIndex, isGlobal: true);
+            _selfEntries[i] = BuildEntries(piece.SelfModifiers ?? [], maskIndex, isGlobal: false);
             _pieceGlobalUpperBound[i] = _globalEntries[i]
                 .Sum(e => e.Weight * chartMaxOverCells[e.MaskIdx] * sGlobalMax[e.MaskIdx]);
         }
@@ -388,6 +393,14 @@ public class VoyageScorer
                              * voyage[e.MaskIdx];
             }
 
+            // The chart's own area. Border multipliers on this tile and the chart's own quantity
+            // both apply, but the chart-effect borders do not: those boost adjacent charts.
+            foreach (var e in _selfEntries[piSelf])
+            {
+                cellScore += e.Weight * _tileMult[cell][e.MaskIdx][conn[cell]] * self[cell][e.MaskIdx]
+                             * voyage[e.MaskIdx];
+            }
+
             score += cellScore;
             if (cellsOut != null)
                 cellsOut[r, c] = cellScore;
@@ -524,6 +537,9 @@ public class VoyageScorer
     /// <summary>The piece's voyage-scope (global) modifiers, one entry per tag mask.</summary>
     public IReadOnlyList<ModEntry> GlobalMods(int pieceIdx) => _globalEntries[pieceIdx];
 
+    /// <summary>Value the piece produces in its own area, one entry per tag mask.</summary>
+    public IReadOnlyList<ModEntry> SelfMods(int pieceIdx) => _selfEntries[pieceIdx];
+
     /// <summary>
     /// How much the chart itself scales rewards landing on its own tile, for one tag mask. This is
     /// what makes placement quadratic: it depends on the chart chosen, not just the tile.
@@ -635,6 +651,19 @@ public class VoyageScorer
                     mod.Name, selfPiece.Id, r, c, true, mod.Weight,
                     chartM, MatchedBorders(cell, mod.Tags, conn[cell], chartSide: true),
                     globalFactor, [], mod.Weight * chartM * globalFactor, mod.Tags));
+            }
+
+            foreach (var mod in selfPiece.SelfModifiers ?? [])
+            {
+                if (mod.Weight == 0)
+                    continue;
+
+                var mi = _maskIndex[mod.Tags];
+                var tileM = _tileMult[cell][mi][conn[cell]] * self[cell][mi] * voyage[mi];
+                rows.Add(new ScoreContribution(
+                    mod.Name, selfPiece.Id, r, c, false, mod.Weight,
+                    1, [], tileM, MatchedBorders(cell, mod.Tags, conn[cell], chartSide: false),
+                    mod.Weight * tileM, mod.Tags));
             }
 
             rows.Sort((a, b) => b.Value.CompareTo(a.Value));

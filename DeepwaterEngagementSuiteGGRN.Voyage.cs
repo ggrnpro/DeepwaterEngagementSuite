@@ -311,6 +311,15 @@ public partial class DeepwaterEngagementSuiteGGRN
                 Graphics.DrawTextWithBackground(selfStats.ToString(), pos, Color.Aqua, Color.Black);
             }
 
+            // Named destination areas carry their own encounter and are often the reason to take a
+            // chart at all, so show the ones that are worth something.
+            var area = SafeRoomName(charts[i].Entity.GetComponent<DeepwaterChart>());
+            if (AreaModifiers(area) is { Count: > 0 } areaMods)
+            {
+                pos.Y += size.Y;
+                Graphics.DrawTextWithBackground($"{area} ({areaMods[0].Weight:F0})", pos, Color.Gold, Color.Black);
+            }
+
             var chartMods = charts[i].Entity.GetComponent<Mods>()?.ImplicitMods ?? [];
             
             foreach (var chartMod in chartMods) {
@@ -393,6 +402,7 @@ public partial class DeepwaterEngagementSuiteGGRN
                         var chartMods = chart.Item.GetComponent<Mods>()?.ItemMods;
                         var selfStats = ChartStatReader.SelfAreaStats(chartMods);
                         var voyageStats = ChartStatReader.VoyageWideStats(chartMods);
+                        var selfMods = AreaModifiers(SafeRoomName(c));
                         var mp = new MapPiece(i,
                             int.PopCount((int)rotation) switch
                             {
@@ -413,7 +423,8 @@ public partial class DeepwaterEngagementSuiteGGRN
                             }) ?? []
                             ],
                             selfStats,
-                            voyageStats);
+                            voyageStats,
+                            selfMods);
                         pieces.Add(mp);
                     }
 

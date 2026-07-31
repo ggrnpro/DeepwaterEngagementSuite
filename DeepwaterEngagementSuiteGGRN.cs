@@ -96,6 +96,7 @@ public partial class DeepwaterEngagementSuiteGGRN : BaseSettingsPlugin<Deepwater
             ApplyProfile(Settings.VoyageSettings.Profiles[0].Name);
         }
         Settings.VoyageSettings.ProfileRenameNode.DrawDelegate = DrawProfileRenameNode;
+        SeedAreaValues();
         RegisterHotkey(Settings.PlannerSettings.StartSearchHotkey);
         RegisterHotkey(Settings.PlannerSettings.StopSearchHotkey);
         RegisterHotkey(Settings.PlannerSettings.ClearSearchHotkey);
@@ -1054,6 +1055,11 @@ public partial class DeepwaterEngagementSuiteGGRN : BaseSettingsPlugin<Deepwater
 
     public override void EntityAdded(Entity entity)
     {
+        // Census of everything the voyage spawns, so the metadata vocabulary is on record rather
+        // than guessed at when something new needs pointing at.
+        if (Settings.VoyageSettings.EnableDebugDump)
+            Telemetry?.NoteEntity(entity.Path);
+
         if ((entity.Type is EntityType.Chest or EntityType.Terrain or EntityType.IngameIcon)
             && GetEntityType(entity.Path) != ExpeditionEntityType.None
             && !IsEntityCompleted(entity, GetChestType(entity.Path)))
