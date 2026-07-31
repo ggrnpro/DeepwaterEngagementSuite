@@ -194,12 +194,31 @@ public partial class DeepwaterEngagementSuiteGGRN
         };
     }
 
-    private static object DescribeMod(ItemMod mod) => new
+    private object DescribeMod(ItemMod mod)
     {
-        id = mod.RawName,
-        display = SafeDisplayName(mod),
-        values = SafeValues(mod),
-    };
+        // The item's own stat block comes back empty for charts, so the mod records are the only
+        // way to learn which of a mod's values is quantity, rarity, pack size or sulphur.
+        Telemetry?.NoteModRecord(mod.RawName, () => VoyageTelemetry.Describe(SafeModRecord(mod), depth: 2));
+
+        return new
+        {
+            id = mod.RawName,
+            display = SafeDisplayName(mod),
+            values = SafeValues(mod),
+        };
+    }
+
+    private static object SafeModRecord(ItemMod mod)
+    {
+        try
+        {
+            return mod.ModRecord;
+        }
+        catch
+        {
+            return null;
+        }
+    }
 
     private static string SafeDisplayName(ItemMod mod)
     {

@@ -41,6 +41,7 @@ public sealed class VoyageTelemetry : IDisposable
         new(new ConcurrentQueue<(string, string, bool)>(), 512);
 
     private readonly ConcurrentDictionary<string, UnknownMod> _unknown = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, object> _modRecords = new(StringComparer.OrdinalIgnoreCase);
     private readonly Thread _writer;
     private DateTime _lastUnknownFlush = DateTime.MinValue;
 
@@ -50,6 +51,7 @@ public sealed class VoyageTelemetry : IDisposable
         System.IO.Directory.CreateDirectory(directory);
         EventLogPath = Path.Combine(directory, "events.ndjson");
         UnknownModsPath = Path.Combine(directory, "unknown-mods.json");
+        ModRecordsPath = Path.Combine(directory, "mod-records.json");
 
         _writer = new Thread(WriterLoop)
         {
@@ -62,6 +64,7 @@ public sealed class VoyageTelemetry : IDisposable
     public string Directory { get; }
     public string EventLogPath { get; }
     public string UnknownModsPath { get; }
+    public string ModRecordsPath { get; }
 
     /// <summary>Number of events dropped because the writer could not keep up (should stay 0).</summary>
     public int DroppedEvents { get; private set; }
@@ -111,6 +114,32 @@ public sealed class VoyageTelemetry : IDisposable
 
         _lastUnknownFlush = DateTime.UtcNow;
         FlushUnknown();
+    }
+
+    /// <summary>
+    /// Records a modifier's game data (its stat names and value ranges) the first time that id is
+    /// seen. This is what maps a mod's raw values onto stats like item quantity or sulphur found,
+    /// which the item's own stat block does not expose.
+    /// </summary>
+    public void NoteModRecord(string id, Func<object> describe)
+    {
+        if (string.IsNullOrWhiteSpace(id) || _modRecords.ContainsKey(id))
+            return;
+
+        object described;
+        try
+        {
+            described = describe();
+        }
+        catch (Exception ex)
+        {
+            described = $"<error: {ex.GetBaseException().Message}>";
+        }
+
+        if (!_modRecords.TryAdd(id, described))
+            return;
+
+        Enqueue(ModRecordsPath, JsonConvert.SerializeObject(_modRecords, SnapshotSettings), append: false);
     }
 
     public void FlushUnknown()

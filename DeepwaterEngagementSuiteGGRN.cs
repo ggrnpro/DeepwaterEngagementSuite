@@ -152,6 +152,7 @@ public partial class DeepwaterEngagementSuiteGGRN : BaseSettingsPlugin<Deepwater
 
     public override void AreaChange(AreaInstance area)
     {
+        LogVoyageAreaChange(area);
         _plannerRunner?.Stop();
         _plannerRunner = null;
         _scoreHistory = [];
@@ -480,6 +481,7 @@ public partial class DeepwaterEngagementSuiteGGRN : BaseSettingsPlugin<Deepwater
     public override void Render()
     {
         DrawVoyageHighlights();
+        TrackVoyageRun();
         var largePanelsOpen = GameController.IngameState.IngameUi.FullscreenPanels.Any(x => x.IsVisible) ||
                           GameController.IngameState.IngameUi.LargePanels.Any(x => x.IsVisible);
 
