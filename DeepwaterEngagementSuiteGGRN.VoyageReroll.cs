@@ -136,8 +136,26 @@ public partial class DeepwaterEngagementSuiteGGRN
             ? costSulphur / settings.SulphurPerDivine.Value
             : 0;
 
+        // The handler reports the live balance, so the advice can say whether the reroll is even
+        // affordable rather than only what it costs.
+        int? sulphur = null;
+        try
+        {
+            sulphur = Handler?.Sulphur;
+        }
+        catch
+        {
+            // balance is not readable outside the league content; the cost still is
+        }
+
         ImGui.Text($"Rerolls seen on this board: {_rerollsThisBoard}");
-        ImGui.Text($"Next reroll: {costSulphur:N0} sulphur ~ {costDivines:F3} div");
+        ImGui.Text($"Next reroll: {costSulphur:N0} sulphur ~ {costDivines:F3} div"
+                   + (sulphur is { } have ? $"   you have {have:N0}" : ""));
+        if (sulphur is { } balance && balance < costSulphur)
+        {
+            ImGui.TextColored(Color.Orange.ToImguiVec4(),
+                $"Not enough sulphur: {costSulphur - balance:N0} short.");
+        }
         ImGui.SameLine();
         if (ImGui.SmallButton("Reset count"))
             _rerollsThisBoard = 0;

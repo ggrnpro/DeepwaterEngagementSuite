@@ -48,7 +48,9 @@ public partial class DeepwaterEngagementSuiteGGRN
     /// </summary>
     private static double ObjectiveValue(IconPickerIndex type) => type switch
     {
-        IconPickerIndex.GoldenLanternEncounter => 0.01, // ranked separately: it multiplies, it does not add
+        // Ranked ahead of everything while the lantern-first rule is on. The value below only
+        // matters when it is off, and is a guess at what one is worth against a chest.
+        IconPickerIndex.GoldenLanternEncounter => 90,
         IconPickerIndex.CurrencyTreasureChestOpulent => 200,
         IconPickerIndex.CurrencyTreasureChest => 100,
         IconPickerIndex.StrongboxArcanist => 95,
@@ -140,6 +142,9 @@ public partial class DeepwaterEngagementSuiteGGRN
     /// <summary>Lanterns first in shortest-route order, then everything else by value per step.</summary>
     private List<GuideTarget> RankTargets(List<GuideTarget> targets)
     {
+        if (!Settings.VoyageSettings.PrioritiseLanterns.Value)
+            return targets.OrderByDescending(Density).ToList();
+
         var lanterns = targets.Where(x => x.IsLantern).ToList();
         var rest = targets.Where(x => !x.IsLantern).ToList();
 
