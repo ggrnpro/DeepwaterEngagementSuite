@@ -28,8 +28,8 @@ public partial class DeepwaterEngagementSuiteGGRN
     private List<VoyageRoute> _rankedRoutes;
     private int[] _routeStepByTile;
 
-    private double GoldenLanternBonusPerPoint =>
-        Settings.VoyageSettings.GoldenLanternBonusPer100.Value / 100.0 / 100.0;
+    private double GoldenLanternBonusPerLantern =>
+        Settings.VoyageSettings.GoldenLanternBonusPercent.Value / 100.0;
 
     /// <summary>
     /// Solutions in the order they should be offered, cached until the result or the routing
@@ -40,7 +40,7 @@ public partial class DeepwaterEngagementSuiteGGRN
         if (_result == null || _uiScorer == null)
             return _result?.Solutions ?? [];
 
-        var bonus = GoldenLanternBonusPerPoint;
+        var bonus = GoldenLanternBonusPerLantern;
         var rank = Settings.VoyageSettings.RankByRoute.Value;
         if (ReferenceEquals(_routeCacheResult, _result) &&
             _routeCacheBonus.Equals(bonus) &&
@@ -98,27 +98,31 @@ public partial class DeepwaterEngagementSuiteGGRN
         for (var i = 0; i < 9; i++)
             tileValue[i] = cellScores[i / 3, i % 3];
 
-        return VoyageRoutePlanner.Plan(solution.Grid, tileValue, LanternValues(solution), bonusPerPoint);
+        return VoyageRoutePlanner.Plan(solution.Grid, tileValue, LanternCounts(solution), bonusPerPoint);
     }
 
     /// <summary>
-    /// Per-tile Golden Lantern value: the part of a room's score that carries the Lanterns tag, i.e.
-    /// the lanterns that will actually be standing in that room.
+    /// How many Golden Lantern groups end up in each room.
+    ///
+    /// This counts modifiers, not score. Score already carries every border multiplier and every
+    /// chart's quantity, so using it as the lantern bonus made the bonus grow with the board's own
+    /// richness and feed on itself — a board worth 15k came out "routed" at 55k, a multiplier the
+    /// game never applies.
     /// </summary>
-    private double[] LanternValues(VoyageSolution solution)
+    private double[] LanternCounts(VoyageSolution solution)
     {
         var explanation = _uiScorer.Explain(solution.Grid);
         var result = new double[9];
         for (var i = 0; i < 9; i++)
         {
-            double sum = 0;
+            double count = 0;
             foreach (var row in explanation[i / 3, i % 3])
             {
-                if ((row.Tags & ModifierTag.Lanterns) != 0)
-                    sum += row.Value;
+                if ((row.Tags & ModifierTag.Lanterns) != 0 && row.Weight > 0)
+                    count++;
             }
 
-            result[i] = sum;
+            result[i] = count;
         }
 
         return result;
@@ -169,6 +173,13 @@ public partial class DeepwaterEngagementSuiteGGRN
         var order = string.Join(" -> ", route.Order.Select(c => $"({c / 3},{c % 3})"));
         ImGui.Text($"Clear order: {order}");
 
+        // The order alone reads as jumping between unconnected rooms; the walk shows the
+        // backtracking through already-cleared rooms that actually gets you there.
+        if (route.Walk.Count > route.Order.Count)
+        {
+            ImGui.TextDisabled("Swim: " + string.Join(" > ", route.Walk.Select(c => $"({c / 3},{c % 3})")));
+        }
+
         var gainOverWorst = route.RoutedValue - route.WorstRoutedValue;
         ImGui.Text($"Routed value: {route.RoutedValue:F2}  (no lanterns {route.UnroutedValue:F2}, worst order {route.WorstRoutedValue:F2})");
         if (gainOverWorst > 0.005)
@@ -181,6 +192,6 @@ public partial class DeepwaterEngagementSuiteGGRN
             ImGui.TextDisabled("No Golden Lantern value on this board — any legal order pays the same.");
         }
 
-        ImGui.TextDisabled("Entry is the bottom-left room (0,0). Lantern bonus is an estimate; tune it in settings.");
+        ImGui.TextDisabled("Entry is the bottom-left room (0,0). The per-lantern bonus is an estimate; tune it in settings.");
     }
 }

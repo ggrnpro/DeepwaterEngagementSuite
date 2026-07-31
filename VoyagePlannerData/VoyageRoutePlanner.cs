@@ -4,12 +4,17 @@ using System.Collections.Generic;
 namespace DeepwaterEngagementSuiteGGRN.VoyagePlannerData;
 
 /// <summary>The order to clear a solved board in, and what that ordering is worth.</summary>
-/// <param name="Order">Cell indices in visit order, starting at the entry tile.</param>
+/// <param name="Order">Cell indices in first-visit order, starting at the entry tile.</param>
+/// <param name="Walk">
+/// The rooms actually swum through, including the ones re-entered to reach a later room. The visit
+/// order alone reads as teleporting between unconnected rooms.
+/// </param>
 /// <param name="RoutedValue">Total value once Golden Lantern bonuses picked up earlier are applied.</param>
 /// <param name="UnroutedValue">Total value with no lantern bonus at all — the floor.</param>
 /// <param name="WorstRoutedValue">Value of the worst legal order, for showing what the routing is saving.</param>
 public record VoyageRoute(
     IReadOnlyList<int> Order,
+    IReadOnlyList<int> Walk,
     double RoutedValue,
     double UnroutedValue,
     double WorstRoutedValue);
@@ -49,19 +54,22 @@ public static class VoyageRoutePlanner
     /// </summary>
     /// <param name="grid">The solved board.</param>
     /// <param name="tileValue">Per-cell loot value (row-major, cell = row * 3 + col).</param>
-    /// <param name="tileLanternValue">
-    /// Per-cell Golden Lantern value: the part of that room's score carrying the Lanterns tag.
+    /// <param name="tileLanternCount">
+    /// How many Golden Lantern groups stand in each room. This has to be a count, not a share of
+    /// the room's score: score already carries every border and quantity multiplier on the board,
+    /// so feeding it back in makes the bonus grow with the board's own richness and compound into
+    /// numbers the game never produces.
     /// </param>
-    /// <param name="bonusPerLanternValue">
-    /// How much one point of lantern value raises everything found afterwards. This is the one
-    /// number the model cannot derive, so it is a setting.
+    /// <param name="bonusPerLantern">
+    /// How much everything found later is raised per lantern group collected. The game does not
+    /// expose this, so it is a setting.
     /// </param>
     /// <param name="entryCell">Room the voyage starts in.</param>
     public static VoyageRoute Plan(
         MapPiecePlacement[,] grid,
         double[] tileValue,
-        double[] tileLanternValue,
-        double bonusPerLanternValue,
+        double[] tileLanternCount,
+        double bonusPerLantern,
         int entryCell = EntryCell)
     {
         var adjacency = BuildAdjacency(grid);
@@ -71,17 +79,77 @@ public static class VoyageRoutePlanner
         for (var mask = 1; mask < lanternByMask.Length; mask++)
         {
             var lowest = int.TrailingZeroCount(mask);
-            lanternByMask[mask] = lanternByMask[mask & (mask - 1)] + tileLanternValue[lowest];
+            lanternByMask[mask] = lanternByMask[mask & (mask - 1)] + tileLanternCount[lowest];
         }
 
-        var best = Optimise(adjacency, tileValue, lanternByMask, bonusPerLanternValue, entryCell, maximise: true);
-        var worst = Optimise(adjacency, tileValue, lanternByMask, bonusPerLanternValue, entryCell, maximise: false);
+        var best = Optimise(adjacency, tileValue, lanternByMask, bonusPerLantern, entryCell, maximise: true);
+        var worst = Optimise(adjacency, tileValue, lanternByMask, bonusPerLantern, entryCell, maximise: false);
 
         double unrouted = 0;
         foreach (var v in tileValue)
             unrouted += v;
 
-        return new VoyageRoute(best.Order, best.Value, unrouted, worst.Value);
+        return new VoyageRoute(best.Order, ExpandToWalk(adjacency, best.Order), best.Value, unrouted, worst.Value);
+    }
+
+    /// <summary>
+    /// Turns a first-visit order into the rooms actually swum through. A room is entered from
+    /// whichever cleared room is nearest it, so reaching one that does not touch the previous room
+    /// means backtracking, and the walk shows that instead of implying a jump.
+    /// </summary>
+    private static IReadOnlyList<int> ExpandToWalk(int[] adjacency, IReadOnlyList<int> order)
+    {
+        var walk = new List<int> { order[0] };
+        var visited = 1 << order[0];
+
+        for (var step = 1; step < order.Count; step++)
+        {
+            var target = order[step];
+            var path = ShortestPath(adjacency, walk[^1], target, visited | (1 << target));
+            for (var i = 1; i < path.Count; i++)
+                walk.Add(path[i]);
+
+            visited |= 1 << target;
+        }
+
+        return walk;
+    }
+
+    /// <summary>Fewest rooms from one room to another, moving only through rooms in <paramref name="allowed"/>.</summary>
+    private static List<int> ShortestPath(int[] adjacency, int from, int to, int allowed)
+    {
+        var previous = new int[CellCount];
+        Array.Fill(previous, -1);
+        previous[from] = from;
+
+        var queue = new Queue<int>();
+        queue.Enqueue(from);
+        while (queue.Count > 0)
+        {
+            var cell = queue.Dequeue();
+            if (cell == to)
+                break;
+
+            for (var next = 0; next < CellCount; next++)
+            {
+                if ((adjacency[cell] & (1 << next)) == 0 || (allowed & (1 << next)) == 0 || previous[next] >= 0)
+                    continue;
+
+                previous[next] = cell;
+                queue.Enqueue(next);
+            }
+        }
+
+        if (previous[to] < 0)
+            return [from, to];
+
+        var path = new List<int>();
+        for (var cell = to; cell != from; cell = previous[cell])
+            path.Add(cell);
+
+        path.Add(from);
+        path.Reverse();
+        return path;
     }
 
     private static (IReadOnlyList<int> Order, double Value) Optimise(

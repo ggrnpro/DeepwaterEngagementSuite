@@ -468,11 +468,11 @@ public class VoyageSettings
         "lantern rooms are worth reaching early.")]
     public ToggleNode ShowRoute { get; set; } = new ToggleNode(true);
 
-    [Menu("Golden Lantern bonus per 100 lantern points (%)",
-        "How much everything found later is boosted per 100 points of Golden Lantern value collected. " +
-        "The game does not expose this number, so it is an estimate — raise it to make the route " +
-        "prioritise lantern rooms harder.")]
-    public RangeNode<float> GoldenLanternBonusPer100 { get; set; } = new RangeNode<float>(10f, 0f, 100f);
+    [Menu("Golden Lantern bonus each (%)",
+        "How much everything found later is raised per Golden Lantern group collected. This is a " +
+        "count, not a share of the board's score: scoring it off score made the bonus feed on the " +
+        "board's own richness. The game does not expose the real figure, so it is an estimate.")]
+    public RangeNode<float> GoldenLanternBonusPercent { get; set; } = new RangeNode<float>(5f, 0f, 50f);
 
     [Menu("Rank boards by clearing route",
         "Re-orders the solution list by what each board is worth once cleared in its best order, " +
