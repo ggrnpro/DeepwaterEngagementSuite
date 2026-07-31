@@ -202,6 +202,9 @@ public partial class DeepwaterEngagementSuiteGGRN
             stats = SafeStats(mods),
             implicitMods = (mods?.ImplicitMods ?? []).Select(DescribeMod).ToList(),
             explicitMods = (mods?.ExplicitMods ?? []).Select(DescribeMod).ToList(),
+            // A chart's Item Quantity, Item Rarity and Pack Size appear on its tooltip header but
+            // match no visible affix, so the mods granting them must be in the full list only.
+            allMods = (mods?.ItemMods ?? []).Select(DescribeMod).ToList(),
             // One-off reflection dump so the real API shape (area name, biome, room data) is visible
             // in the log rather than guessed at from the outside.
             chartComponent = describe ? VoyageTelemetry.Describe(chart, depth: 2) : null,

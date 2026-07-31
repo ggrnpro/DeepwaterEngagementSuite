@@ -367,6 +367,21 @@ public class VoyageSettings
         "When no fully connected board is possible it shows the best disconnected one and explains why.")]
     public ToggleNode UseAssignmentSolver { get; set; } = new ToggleNode(true);
 
+    [Menu("Show reroll advice", "Compares the current board against every board you have solved before.")]
+    public ToggleNode ShowRerollAdvice { get; set; } = new ToggleNode(true);
+
+    [Menu("Reroll base cost (sulphur)", "Dead Man's Sulphur charged for the first reroll of a board.")]
+    public RangeNode<int> RerollBaseCostSulphur { get; set; } = new RangeNode<int>(3000, 0, 100000);
+
+    [Menu("Reroll cost multiplier", "How much each further reroll of the same board multiplies the cost.")]
+    public RangeNode<float> RerollCostMultiplier { get; set; } = new RangeNode<float>(2f, 1f, 4f);
+
+    [Menu("Sulphur per Divine Orb", "Exchange rate used to price rerolls in divines.")]
+    public RangeNode<int> SulphurPerDivine { get; set; } = new RangeNode<int>(39000, 1, 200000);
+
+    [Menu("Reroll below percentile", "Advise rerolling while the board is worse than this share of past boards.")]
+    public RangeNode<float> RerollBelowPercentile { get; set; } = new RangeNode<float>(50f, 0f, 100f);
+
     [Menu("Show clearing route",
         "Numbers each tile with the order to clear it in. The voyage starts in the bottom-left room, " +
         "and Golden Lanterns raise quantity and rarity for the rest of the run once picked up, so " +

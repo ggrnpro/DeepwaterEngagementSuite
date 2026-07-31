@@ -233,6 +233,7 @@ public partial class DeepwaterEngagementSuiteGGRN
 
         TaskUtils.RunOrRestart(ref _voyagePlaceTask, () => null);
 
+        TrackRerolls(tree);
         TrackVoyageBoard(tree);
         if (Settings.VoyageSettings.DumpSnapshotHotkey.PressedOnce())
             DumpVoyageSnapshot(tree, "manual");
@@ -561,6 +562,8 @@ public partial class DeepwaterEngagementSuiteGGRN
         ImGui.Text($"Valid: {(currentSolution.IsValid ? "Yes" : "No")}");
 
         DrawRoutePanel();
+        RecordBoardScore(currentSolution.TotalScore);
+        DrawRerollPanel(currentSolution.TotalScore);
 
         if (solutions.Count > 0)
         {

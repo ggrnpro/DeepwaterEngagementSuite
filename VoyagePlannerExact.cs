@@ -179,9 +179,12 @@ public class VoyagePlannerExact
         // the best board that ignores full connectivity and flag it as invalid, so the user can see
         // what they are missing instead of an empty window.
         var relaxed = Run(puzzle, scorer, settings, stopwatch, AllPatterns, requireConnected: false);
+        // The game refuses to launch a board that is not fully connected or not fully filled, so a
+        // relaxed board is diagnostic only — it shows what the pool is short of, not a usable plan.
         Diagnostics = relaxed.Solutions.Count > 0
-            ? "No fully connected board is possible with these charts. " + DescribeShapes(pieces) +
-              " Showing the best disconnected board instead."
+            ? "No fully connected board is possible with these charts, and the game will not launch " +
+              "a disconnected one. " + DescribeShapes(pieces) +
+              " The board below is shown only to make the gap visible; it cannot be run."
             : "No board could be built from these charts at all. " + DescribeShapes(pieces);
 
         return relaxed;
