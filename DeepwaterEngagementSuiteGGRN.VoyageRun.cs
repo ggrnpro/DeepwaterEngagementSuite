@@ -50,6 +50,7 @@ public partial class DeepwaterEngagementSuiteGGRN
                 // populate the handler, and knowing that is the difference between the guide
                 // working there and silently having nothing to point at.
                 serverEntities = SafeStaticEntityCount(),
+                guideCandidates = _lastCandidateCount,
             });
         }
         catch (Exception ex)

@@ -84,34 +84,55 @@ public partial class DeepwaterEngagementSuiteGGRN
     /// <summary>
     /// Objects to consider guiding to.
     ///
-    /// The deepwater handler's own list is preferred: it covers the whole area regardless of what is
-    /// loaded around the player and reports each object's opened state directly. A single charted
-    /// area is not a voyage, though, and whether the handler is populated there is not something to
-    /// assume, so an empty list falls back to the entities the client has loaded. That is narrower
-    /// but always present, which makes the guide work inside a chart as well as inside a voyage.
+    /// Both sources are used, because neither is sufficient on its own. The deepwater handler's list
+    /// was expected to cover the whole area, but measured in game it holds one entity, so preferring
+    /// it left the guide nearly blind. The client's live entity list is what actually holds the
+    /// chests and encounters; it only covers what is loaded around the player, but it is read fresh
+    /// every frame, so an object's opened state is current rather than remembered.
     /// </summary>
-    private IEnumerable<Entity> CandidateEntities()
+    private List<Entity> CandidateEntities()
     {
+        var result = new List<Entity>();
+        var seen = new HashSet<uint>();
+
         try
         {
-            if (Handler?.StaticEntities is { Count: > 0 } statics)
-                return statics;
+            foreach (var type in new[] { EntityType.Chest, EntityType.Terrain, EntityType.IngameIcon })
+            {
+                foreach (var entity in GameController.EntityListWrapper.ValidEntitiesByType[type])
+                {
+                    if (seen.Add(entity.Id))
+                        result.Add(entity);
+                }
+            }
+        }
+        catch
+        {
+            // the entity list can be mid-swap on an area change
+        }
+
+        try
+        {
+            if (Handler?.StaticEntities is { } statics)
+            {
+                foreach (var entity in statics)
+                {
+                    if (seen.Add(entity.Id))
+                        result.Add(entity);
+                }
+            }
         }
         catch
         {
             // handler is not available outside league content
         }
 
-        try
-        {
-            return new[] { EntityType.Chest, EntityType.Terrain, EntityType.IngameIcon }
-                .SelectMany(x => GameController.EntityListWrapper.ValidEntitiesByType[x]);
-        }
-        catch
-        {
-            return [];
-        }
+        _lastCandidateCount = result.Count;
+        return result;
     }
+
+    /// <summary>How many objects the last guide pass had to choose from, for the debug dump.</summary>
+    private int _lastCandidateCount;
 
     /// <summary>Everything still worth visiting, wherever the player is.</summary>
     private List<GuideTarget> GuideTargets()
