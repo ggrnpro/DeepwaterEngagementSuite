@@ -11,9 +11,9 @@ using Vector2 = System.Numerics.Vector2;
 using Vector3 = System.Numerics.Vector3;
 using Vector4 = System.Numerics.Vector4;
 
-namespace DeepwaterEngagementSuite;
+namespace DeepwaterEngagementSuiteGGRN;
 
-public partial class DeepwaterEngagementSuite
+public partial class DeepwaterEngagementSuiteGGRN
 {
     private readonly Dictionary<uint, TrailCacheItem> _trailMarkers = new();
     private readonly List<Vector2> _trailPointerTargets = [];

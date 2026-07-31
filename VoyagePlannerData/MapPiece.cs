@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 
-namespace DeepwaterEngagementSuite.VoyagePlannerData;
+namespace DeepwaterEngagementSuiteGGRN.VoyagePlannerData;
 
 public enum PieceType
 {

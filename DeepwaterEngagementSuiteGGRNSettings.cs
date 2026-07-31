@@ -2,7 +2,7 @@
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Windows.Forms;
-using DeepwaterEngagementSuite.VoyagePlannerData;
+using DeepwaterEngagementSuiteGGRN.VoyagePlannerData;
 using ExileCore;
 using ExileCore.PoEMemory.Elements;
 using ExileCore.PoEMemory.MemoryObjects;
@@ -16,7 +16,7 @@ using ItemFilterLibrary;
 using Newtonsoft.Json;
 using SharpDX;
 
-namespace DeepwaterEngagementSuite;
+namespace DeepwaterEngagementSuiteGGRN;
 
 public class DeepwaterEngagementSuiteSettings : ISettings
 {
@@ -369,7 +369,7 @@ public class VoyageSettings
 
     [Menu("Write debug dumps",
         "Records the voyage board, every chart's stats and modifiers, and every solver run under " +
-        "config/DeepwaterEngagementSuite/debug. Board changes (including rerolls) are captured automatically.")]
+        "config/DeepwaterEngagementSuiteGGRN/debug. Board changes (including rerolls) are captured automatically.")]
     public ToggleNode EnableDebugDump { get; set; } = new ToggleNode(true);
 
     [Menu("Snapshot hotkey", "Writes a full JSON snapshot of the current voyage window and the latest solver result.")]

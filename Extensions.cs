@@ -2,7 +2,7 @@
 using ExileCore.Shared.Helpers;
 using GameOffsets.Native;
 
-namespace DeepwaterEngagementSuite;
+namespace DeepwaterEngagementSuiteGGRN;
 
 public static class Extensions
 {

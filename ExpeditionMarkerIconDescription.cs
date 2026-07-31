@@ -1,7 +1,7 @@
 ﻿using System.Collections.Generic;
 using ExileCore.Shared.Enums;
 
-namespace DeepwaterEngagementSuite;
+namespace DeepwaterEngagementSuiteGGRN;
 
 public class ExpeditionMarkerIconDescription
 {

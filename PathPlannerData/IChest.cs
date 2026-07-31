@@ -1,4 +1,4 @@
-﻿namespace DeepwaterEngagementSuite.PathPlannerData;
+﻿namespace DeepwaterEngagementSuiteGGRN.PathPlannerData;
 
 public interface IChest : IExpeditionLoot
 {

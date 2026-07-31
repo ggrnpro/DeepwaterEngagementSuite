@@ -1,4 +1,4 @@
-namespace DeepwaterEngagementSuite.VoyagePlannerData;
+namespace DeepwaterEngagementSuiteGGRN.VoyagePlannerData;
 
 public record LockedPlacement(
     int Row,

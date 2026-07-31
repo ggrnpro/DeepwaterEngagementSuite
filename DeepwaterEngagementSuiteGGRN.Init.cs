@@ -1,6 +1,6 @@
-﻿namespace DeepwaterEngagementSuite;
+﻿namespace DeepwaterEngagementSuiteGGRN;
 
-public partial class DeepwaterEngagementSuite
+public partial class DeepwaterEngagementSuiteGGRN
 {
     private void InitOnce()
     {

@@ -1,4 +1,4 @@
-namespace DeepwaterEngagementSuite.VoyagePlannerData;
+namespace DeepwaterEngagementSuiteGGRN.VoyagePlannerData;
 
 /// <summary>
 /// A single border modifier touching one grid tile.

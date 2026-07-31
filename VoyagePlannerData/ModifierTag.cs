@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Concurrent;
 
-namespace DeepwaterEngagementSuite.VoyagePlannerData;
+namespace DeepwaterEngagementSuiteGGRN.VoyagePlannerData;
 
 /// <summary>
 /// Reward categories used to decide which border multipliers actually apply to which chart

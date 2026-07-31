@@ -9,7 +9,7 @@ using System.Reflection;
 using System.Threading;
 using Newtonsoft.Json;
 
-namespace DeepwaterEngagementSuite;
+namespace DeepwaterEngagementSuiteGGRN;
 
 /// <summary>
 /// Debug telemetry for the voyage planner.

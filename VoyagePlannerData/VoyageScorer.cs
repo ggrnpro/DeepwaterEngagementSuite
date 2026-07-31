@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 
-namespace DeepwaterEngagementSuite.VoyagePlannerData;
+namespace DeepwaterEngagementSuiteGGRN.VoyagePlannerData;
 
 /// <summary>
 /// Tag-aware scoring for voyage puzzles.

@@ -1,6 +1,6 @@
 using System;
 
-namespace DeepwaterEngagementSuite.VoyagePlannerData;
+namespace DeepwaterEngagementSuiteGGRN.VoyagePlannerData;
 
 /// <summary>
 /// Rectangular linear assignment (Jonker-Volgenant style shortest augmenting path with potentials).

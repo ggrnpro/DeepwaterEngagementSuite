@@ -3,7 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Numerics;
 
-namespace DeepwaterEngagementSuite.PathPlannerData;
+namespace DeepwaterEngagementSuiteGGRN.PathPlannerData;
 
 public record ExpeditionEnvironment(
     List<(Vector2, IExpeditionLoot)> Loot,

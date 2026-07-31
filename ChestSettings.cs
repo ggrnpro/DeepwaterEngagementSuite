@@ -1,4 +1,4 @@
-﻿namespace DeepwaterEngagementSuite;
+﻿namespace DeepwaterEngagementSuiteGGRN;
 
 public class ChestSettings
 {

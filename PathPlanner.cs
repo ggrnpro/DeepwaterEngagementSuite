@@ -2,12 +2,12 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
-using DeepwaterEngagementSuite.PathPlannerData;
+using DeepwaterEngagementSuiteGGRN.PathPlannerData;
 using ExileCore.Shared.Helpers;
 using GameOffsets.Native;
 using SixLabors.PolygonClipper;
 
-namespace DeepwaterEngagementSuite;
+namespace DeepwaterEngagementSuiteGGRN;
 
 public class PathPlanner
 {
@@ -127,7 +127,7 @@ public class PathPlanner
 
     private List<Vector2i> BuildPath(ExpeditionEnvironment environment)
     {
-        var polygon = environment.Bubbles.Select(x => DeepwaterEngagementSuite.GetCirclePolygon(x.Position, x.Radius)).Aggregate(PolygonClipper.Union);
+        var polygon = environment.Bubbles.Select(x => DeepwaterEngagementSuiteGGRN.GetCirclePolygon(x.Position, x.Radius)).Aggregate(PolygonClipper.Union);
         var count = environment.MaxBubbles;
         var points = new List<Vector2i>();
         while (count>0)
@@ -143,7 +143,7 @@ public class PathPlanner
                     break;
                 }
             }
-            polygon = PolygonClipper.Union(polygon,(DeepwaterEngagementSuite.GetCirclePolygon(new Vector2((int)point.X, (int)point.Y), environment.BubbleRadius)));
+            polygon = PolygonClipper.Union(polygon,(DeepwaterEngagementSuiteGGRN.GetCirclePolygon(new Vector2((int)point.X, (int)point.Y), environment.BubbleRadius)));
             points.Add(new Vector2i((int)point.X,(int)point.Y));
         }
 

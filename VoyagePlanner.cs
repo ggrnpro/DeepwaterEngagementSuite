@@ -2,9 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
-using DeepwaterEngagementSuite.VoyagePlannerData;
+using DeepwaterEngagementSuiteGGRN.VoyagePlannerData;
 
-namespace DeepwaterEngagementSuite;
+namespace DeepwaterEngagementSuiteGGRN;
 
 public class VoyagePlanner
 {

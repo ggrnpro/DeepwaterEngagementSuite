@@ -1,6 +1,6 @@
 using System;
 
-namespace DeepwaterEngagementSuite.VoyagePlannerData;
+namespace DeepwaterEngagementSuiteGGRN.VoyagePlannerData;
 
 [Flags]
 public enum Direction

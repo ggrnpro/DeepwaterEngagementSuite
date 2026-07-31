@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using DeepwaterEngagementSuite.VoyagePlannerData;
+using DeepwaterEngagementSuiteGGRN.VoyagePlannerData;
 using ExileCore;
 using ExileCore.PoEMemory;
 using ExileCore.PoEMemory.Components;
@@ -11,7 +11,7 @@ using ExileCore.PoEMemory.Elements.InventoryElements;
 using ExileCore.PoEMemory.MemoryObjects;
 using ExileCore.PoEMemory.Models;
 
-namespace DeepwaterEngagementSuite;
+namespace DeepwaterEngagementSuiteGGRN;
 
 /// <summary>
 /// Debug capture for the voyage planner: dumps what the game actually exposes so the scoring model
@@ -20,7 +20,7 @@ namespace DeepwaterEngagementSuite;
 /// The board signature is watched every frame, so every reroll is recorded automatically — that log
 /// doubles as the sample set for estimating how often each border modifier appears.
 /// </summary>
-public partial class DeepwaterEngagementSuite
+public partial class DeepwaterEngagementSuiteGGRN
 {
     private VoyageTelemetry _telemetry;
     private string _lastBoardSignature;

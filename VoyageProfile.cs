@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 
-namespace DeepwaterEngagementSuite;
+namespace DeepwaterEngagementSuiteGGRN;
 
 public class VoyageProfile
 {

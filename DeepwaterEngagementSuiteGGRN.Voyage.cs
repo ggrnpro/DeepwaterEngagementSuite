@@ -4,7 +4,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
-using DeepwaterEngagementSuite.VoyagePlannerData;
+using DeepwaterEngagementSuiteGGRN.VoyagePlannerData;
 using ExileCore;
 using ExileCore.PoEMemory.Components;
 using ExileCore.PoEMemory.Elements;
@@ -16,12 +16,12 @@ using ExileCore.Shared.Helpers;
 using GameOffsets.Native;
 using ImGuiNET;
 using SharpDX;
-using Direction = DeepwaterEngagementSuite.VoyagePlannerData.Direction;
+using Direction = DeepwaterEngagementSuiteGGRN.VoyagePlannerData.Direction;
 using Vector2 = System.Numerics.Vector2;
 
-namespace DeepwaterEngagementSuite;
+namespace DeepwaterEngagementSuiteGGRN;
 
-public partial class DeepwaterEngagementSuite
+public partial class DeepwaterEngagementSuiteGGRN
 {
     private VoyageSolutionResult _result;
     private Task _run;

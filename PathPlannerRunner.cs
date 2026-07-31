@@ -5,11 +5,11 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
-using DeepwaterEngagementSuite.PathPlannerData;
+using DeepwaterEngagementSuiteGGRN.PathPlannerData;
 using ExileCore;
 using GameOffsets.Native;
 
-namespace DeepwaterEngagementSuite;
+namespace DeepwaterEngagementSuiteGGRN;
 
 public class PathPlannerRunner
 {
@@ -93,7 +93,7 @@ public class PathPlannerRunner
         }
         finally
         {
-            DebugWindow.LogMsg("DeepwaterEngagementSuite PathPlanner finished.");
+            DebugWindow.LogMsg("DeepwaterEngagementSuiteGGRN PathPlanner finished.");
             if (settings.PlaySoundOnFinish)
             {
                 soundController.PlaySound("attention");

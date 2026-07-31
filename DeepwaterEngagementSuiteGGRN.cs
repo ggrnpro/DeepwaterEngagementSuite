@@ -1,5 +1,5 @@
-﻿using DeepwaterEngagementSuite.PathPlannerData;
-using DeepwaterEngagementSuite.VoyagePlannerData;
+﻿using DeepwaterEngagementSuiteGGRN.PathPlannerData;
+using DeepwaterEngagementSuiteGGRN.VoyagePlannerData;
 using ExileCore;
 using ExileCore.PoEMemory;
 using ExileCore.PoEMemory.Components;
@@ -27,14 +27,14 @@ using System.Threading.Tasks;
 using System.Windows.Forms;
 using Chest = ExileCore.PoEMemory.Components.Chest;
 using Color = SharpDX.Color;
-using Direction = DeepwaterEngagementSuite.VoyagePlannerData.Direction;
+using Direction = DeepwaterEngagementSuiteGGRN.VoyagePlannerData.Direction;
 using Vector2 = System.Numerics.Vector2;
 using Vector3 = System.Numerics.Vector3;
 using Vector4 = System.Numerics.Vector4;
 
-namespace DeepwaterEngagementSuite;
+namespace DeepwaterEngagementSuiteGGRN;
 
-public partial class DeepwaterEngagementSuite : BaseSettingsPlugin<DeepwaterEngagementSuiteSettings>
+public partial class DeepwaterEngagementSuiteGGRN : BaseSettingsPlugin<DeepwaterEngagementSuiteSettings>
 {
     private readonly ConcurrentDictionary<HashSet<(Vector2i, float)>, Polygon> _shapeCache = new(HashSet<(Vector2i,float)>.CreateSetComparer());
 
@@ -69,7 +69,7 @@ public partial class DeepwaterEngagementSuite : BaseSettingsPlugin<DeepwaterEnga
     private DeepwaterHandler Handler => GameController.IngameState.ServerData.DeepwaterHandler;
     private bool _initialized;
 
-    public DeepwaterEngagementSuite()
+    public DeepwaterEngagementSuiteGGRN()
     {
         Order = 10_000;
     }

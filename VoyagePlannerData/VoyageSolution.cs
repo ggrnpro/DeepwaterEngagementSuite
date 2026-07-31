@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 
-namespace DeepwaterEngagementSuite.VoyagePlannerData;
+namespace DeepwaterEngagementSuiteGGRN.VoyagePlannerData;
 
 public record VoyageSolution(
     MapPiecePlacement[,] Grid,

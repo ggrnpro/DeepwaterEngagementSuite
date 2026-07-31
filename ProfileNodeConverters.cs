@@ -3,7 +3,7 @@ using ExileCore.Shared.Nodes;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Converters;
 
-namespace DeepwaterEngagementSuite;
+namespace DeepwaterEngagementSuiteGGRN;
 
 public class TextNodeConverter : CustomCreationConverter<TextNode>
 {
