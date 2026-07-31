@@ -235,7 +235,7 @@ public partial class DeepwaterEngagementSuiteGGRN
 
         TrackRerolls(tree);
         TrackVoyageBoard(tree);
-        if (Settings.VoyageSettings.DumpSnapshotHotkey.PressedOnce())
+        if (Settings.VoyageSettings.SnapshotHotkey.PressedOnce())
             DumpVoyageSnapshot(tree, "manual");
 
         var modsPerTileIndex = GetTileMods(tree);

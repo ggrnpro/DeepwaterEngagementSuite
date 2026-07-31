@@ -404,8 +404,10 @@ public class VoyageSettings
         "config/DeepwaterEngagementSuiteGGRN/debug. Board changes (including rerolls) are captured automatically.")]
     public ToggleNode EnableDebugDump { get; set; } = new ToggleNode(true);
 
+    // Deliberately not F9: something outside the plugin grabs it and drops you to character select.
+    // The property is named differently from the old one so the stored F9 binding is not carried over.
     [Menu("Snapshot hotkey", "Writes a full JSON snapshot of the current voyage window and the latest solver result.")]
-    public HotkeyNodeV2 DumpSnapshotHotkey { get; set; } = new HotkeyNodeV2(Keys.F9);
+    public HotkeyNodeV2 SnapshotHotkey { get; set; } = new HotkeyNodeV2(Keys.F4);
     public RangeNode<float> BorderHighlightThreshold { get; set; } = new RangeNode<float>(1.01f, 0, 10);
     public RangeNode<float> ChartHighlightThreshold { get; set; } = new RangeNode<float>(1.0f, 0, 10);
     public ListNode ProfileSelector { get; set; } = new ListNode();
