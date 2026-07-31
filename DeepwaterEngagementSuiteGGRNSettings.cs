@@ -388,6 +388,24 @@ public class VoyageSettings
     [Menu("Gold weight", "Gold is worth little to a currency-focused run.")]
     public RangeNode<float> GoldWeight { get; set; } = new RangeNode<float>(0.2f, 0f, 2f);
 
+    [Menu("Show voyage guide",
+        "Inside a voyage, draws a line to the objective worth going to next and ranks the rest. " +
+        "Golden Lanterns always come first: they raise quantity and rarity for the remainder of the " +
+        "run, so one taken late buffs almost nothing.")]
+    public ToggleNode ShowObjectiveGuide { get; set; } = new ToggleNode(true);
+
+    [Menu("Show guide list", "A small window listing the next targets in order.")]
+    public ToggleNode ShowObjectiveList { get; set; } = new ToggleNode(true);
+
+    [Menu("Guide list length")]
+    public RangeNode<int> GuideListLength { get; set; } = new RangeNode<int>(6, 1, 20);
+
+    [Menu("Guide max distance", "Ignore objectives further away than this. 0 = no limit.")]
+    public RangeNode<int> GuideMaxDistance { get; set; } = new RangeNode<int>(0, 0, 2000);
+
+    [Menu("Guide line colour")]
+    public ColorNode GuideColor { get; set; } = new ColorNode(SharpDX.Color.Cyan);
+
     [Menu("Area values", "What each destination area is worth on its own, before anything neighbours add. " +
         "Named areas carry their own encounter; plain biome rooms are worth nothing extra. " +
         "Starting estimates — edit them as you learn what the areas really drop.")]

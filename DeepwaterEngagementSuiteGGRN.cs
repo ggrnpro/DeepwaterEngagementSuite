@@ -161,6 +161,7 @@ public partial class DeepwaterEngagementSuiteGGRN : BaseSettingsPlugin<Deepwater
         _editedIndex = null;
         _editedPathEval = null;
         _cachedEntities.Clear();
+        _objectives.Clear();
         ResetTrailTracking();
         _zoneCleared = false;
         _pathfindingData = GameController.IngameState.Data.RawPathfindingData;
@@ -484,6 +485,7 @@ public partial class DeepwaterEngagementSuiteGGRN : BaseSettingsPlugin<Deepwater
         DrawVoyageHighlights();
         TrackVoyageRun();
         DrawLanternRoute();
+        DrawObjectiveGuide();
         var largePanelsOpen = GameController.IngameState.IngameUi.FullscreenPanels.Any(x => x.IsVisible) ||
                           GameController.IngameState.IngameUi.LargePanels.Any(x => x.IsVisible);
 
@@ -1060,6 +1062,8 @@ public partial class DeepwaterEngagementSuiteGGRN : BaseSettingsPlugin<Deepwater
         if (Settings.VoyageSettings.EnableDebugDump)
             Telemetry?.NoteEntity(entity.Path);
 
+        TrackObjective(entity);
+
         if ((entity.Type is EntityType.Chest or EntityType.Terrain or EntityType.IngameIcon)
             && GetEntityType(entity.Path) != ExpeditionEntityType.None
             && !IsEntityCompleted(entity, GetChestType(entity.Path)))
@@ -1072,6 +1076,7 @@ public partial class DeepwaterEngagementSuiteGGRN : BaseSettingsPlugin<Deepwater
     public override void EntityRemoved(Entity entity)
     {
         _cachedEntities.Remove(entity.Id);
+        ForgetObjective(entity);
     }
 
     private static EntityCacheItem BuildCacheItem(Entity entity)
