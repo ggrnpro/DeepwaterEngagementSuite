@@ -367,6 +367,23 @@ public class VoyageSettings
         "When no fully connected board is possible it shows the best disconnected one and explains why.")]
     public ToggleNode UseAssignmentSolver { get; set; } = new ToggleNode(true);
 
+    [Menu("Show clearing route",
+        "Numbers each tile with the order to clear it in. The voyage starts in the bottom-left room, " +
+        "and Golden Lanterns raise quantity and rarity for the rest of the run once picked up, so " +
+        "lantern rooms are worth reaching early.")]
+    public ToggleNode ShowRoute { get; set; } = new ToggleNode(true);
+
+    [Menu("Golden Lantern bonus per 100 lantern points (%)",
+        "How much everything found later is boosted per 100 points of Golden Lantern value collected. " +
+        "The game does not expose this number, so it is an estimate — raise it to make the route " +
+        "prioritise lantern rooms harder.")]
+    public RangeNode<float> GoldenLanternBonusPer100 { get; set; } = new RangeNode<float>(10f, 0f, 100f);
+
+    [Menu("Rank boards by clearing route",
+        "Re-orders the solution list by what each board is worth once cleared in its best order, " +
+        "instead of by raw score. Boards that put lantern rooms near the entry win.")]
+    public ToggleNode RankByRoute { get; set; } = new ToggleNode(true);
+
     [Menu("Write debug dumps",
         "Records the voyage board, every chart's stats and modifiers, and every solver run under " +
         "config/DeepwaterEngagementSuiteGGRN/debug. Board changes (including rerolls) are captured automatically.")]

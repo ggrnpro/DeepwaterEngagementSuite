@@ -292,7 +292,9 @@ public partial class DeepwaterEngagementSuiteGGRN
             }
         }
 
-        var charts = GetAvailableCharts();     
+        DrawRouteOverlay(tiles);
+
+        var charts = GetAvailableCharts();
         for (int i = 0; i < charts.Count; i++) {
             var pos = charts[i].GetClientRectCache.TopLeft.ToVector2Num();
             var size = Graphics.DrawTextWithBackground($"#{i}", pos, Color.Black);
@@ -492,10 +494,10 @@ public partial class DeepwaterEngagementSuiteGGRN
             ImGui.SameLine();
             if (ImGui.Button("Place"))
             {
-                if (_selectedSolutionIndex >= _result.Solutions.Count)
+                var ranked = RankedSolutions();
+                if (_selectedSolutionIndex >= ranked.Count)
                     _selectedSolutionIndex = 0;
-                var sol = _result.Solutions[_selectedSolutionIndex];
-                _voyagePlaceTask = PlacePieces(sol);
+                _voyagePlaceTask = PlacePieces(ranked[_selectedSolutionIndex]);
             }
         }
 
@@ -540,8 +542,10 @@ public partial class DeepwaterEngagementSuiteGGRN
             ImGui.TextColored(Color.Orange.ToImguiVec4(), $"Time limit reached - showing best solutions found so far (may not be optimal).");
         }
 
-        _selectedSolutionIndex = Math.Clamp(_selectedSolutionIndex, 0, _result.Solutions.Count - 1);
-        var currentSolution = _result.Solutions[_selectedSolutionIndex];
+        var solutions = RankedSolutions();
+        _selectedSolutionIndex = Math.Clamp(_selectedSolutionIndex, 0, solutions.Count - 1);
+        var currentSolution = solutions[_selectedSolutionIndex];
+        RefreshRouteSteps();
 
         var asciiArt = BuildAsciiGrid(currentSolution.Grid, tiles);
 
@@ -556,26 +560,31 @@ public partial class DeepwaterEngagementSuiteGGRN
         ImGui.Text($"Score: {currentSolution.TotalScore:F2}");
         ImGui.Text($"Valid: {(currentSolution.IsValid ? "Yes" : "No")}");
 
-        if (_result.Solutions.Count > 0)
+        DrawRoutePanel();
+
+        if (solutions.Count > 0)
         {
             ImGui.Spacing();
-            if (ImGui.BeginTable("SolutionsList", 4, ImGuiTableFlags.Borders | ImGuiTableFlags.SizingStretchProp))
+            if (ImGui.BeginTable("SolutionsList", 5, ImGuiTableFlags.Borders | ImGuiTableFlags.SizingStretchProp))
             {
                 ImGui.TableSetupColumn("#");
                 ImGui.TableSetupColumn("Score");
+                ImGui.TableSetupColumn("Routed");
                 ImGui.TableSetupColumn("Valid");
                 ImGui.TableSetupColumn("Select");
                 ImGui.TableHeadersRow();
 
-                for (int i = 0; i < _result.Solutions.Count; i++)
+                for (int i = 0; i < solutions.Count; i++)
                 {
-                    var sol = _result.Solutions[i];
+                    var sol = solutions[i];
                     ImGui.TableNextRow();
                     ImGui.PushID(i);
                     ImGui.TableNextColumn();
                     ImGui.Text($"{i + 1}");
                     ImGui.TableNextColumn();
                     ImGui.Text($"{sol.TotalScore:F2}");
+                    ImGui.TableNextColumn();
+                    ImGui.Text(RoutedValueAt(i) is { } routed ? $"{routed:F2}" : "-");
                     ImGui.TableNextColumn();
                     ImGui.Text($"{sol.IsValid}");
                     ImGui.TableNextColumn();

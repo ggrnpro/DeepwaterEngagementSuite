@@ -455,7 +455,7 @@ public class VoyageScorer
                         mod.Name, piece.Id, nr, nc, false, mod.Weight,
                         chartM, MatchedBorders(u, mod.Tags, conn[u], chartSide: true),
                         tileM, MatchedBorders(cell, mod.Tags, conn[cell], chartSide: false),
-                        value));
+                        value, mod.Tags));
                 }
             }
 
@@ -470,7 +470,7 @@ public class VoyageScorer
                 rows.Add(new ScoreContribution(
                     mod.Name, selfPiece.Id, r, c, true, mod.Weight,
                     chartM, MatchedBorders(cell, mod.Tags, conn[cell], chartSide: true),
-                    s[mi], [], mod.Weight * chartM * s[mi]));
+                    s[mi], [], mod.Weight * chartM * s[mi], mod.Tags));
             }
 
             rows.Sort((a, b) => b.Value.CompareTo(a.Value));
@@ -478,7 +478,7 @@ public class VoyageScorer
             {
                 rows.Add(new ScoreContribution(
                     "Base adjacency", -1, -1, -1, false, baseWeight,
-                    1, [], baseValue / baseWeight, [], baseValue));
+                    1, [], baseValue / baseWeight, [], baseValue, ModifierTag.None));
             }
 
             result[r, c] = rows;
@@ -525,4 +525,5 @@ public record ScoreContribution(
     IReadOnlyList<AppliedBorder> ChartBorders,
     double TileFactor,
     IReadOnlyList<AppliedBorder> TileBorders,
-    double Value);
+    double Value,
+    ModifierTag Tags);
