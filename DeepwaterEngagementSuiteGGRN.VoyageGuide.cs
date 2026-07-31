@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using ExileCore.PoEMemory.MemoryObjects;
 using ExileCore.Shared.Enums;
 using ExileCore.Shared.Helpers;
 using ImGuiNET;
@@ -13,9 +14,12 @@ namespace DeepwaterEngagementSuiteGGRN;
 /// <summary>
 /// Tells you where to go next inside a voyage.
 ///
-/// The objects come from the same cache the plugin already builds for its icons and trails. That
-/// cache is rescanned every tick and drops anything looted, so keeping a second list beside it only
-/// meant maintaining a second, worse copy of detection the plugin had already got right.
+/// The objects come from the server's own list of the voyage's static entities, not from the client
+/// entity cache. The cache only holds what is loaded around the player and only retires what it can
+/// still see, so it both forgot to drop looted objects and knew nothing about the far side of the
+/// map. The server list has neither problem: it covers the whole voyage and reports each object's
+/// opened state directly, which is what makes it possible to point at a room worth crossing to
+/// rather than only at what happens to be underfoot.
 ///
 /// Two rules decide the order. Golden Lanterns come first regardless of distance: they raise
 /// quantity and rarity for the rest of the run, so one taken early buffs everything after it and
@@ -75,20 +79,38 @@ public partial class DeepwaterEngagementSuiteGGRN
         public bool IsLantern => Type == IconPickerIndex.GoldenLanternEncounter;
     }
 
-    /// <summary>Everything still worth visiting, taken from the plugin's own entity cache.</summary>
+    /// <summary>Everything in the voyage still worth visiting, according to the server.</summary>
     private List<GuideTarget> GuideTargets()
     {
         var maxDistance = Settings.VoyageSettings.GuideMaxDistance.Value;
         var targets = new List<GuideTarget>();
 
-        foreach (var (id, entity) in _cachedEntities)
+        List<Entity> statics;
+        try
         {
-            if (entity.IsOpened)
-                continue;
+            statics = Handler?.StaticEntities;
+        }
+        catch
+        {
+            return targets;
+        }
 
-            // Only send the player somewhere the game confirmed is there this tick. A cached entry
-            // that has dropped out of the entity list may well have been looted since.
-            if (!_liveEntityIds.Contains(id))
+        if (statics == null)
+            return targets;
+
+        foreach (var entity in statics)
+        {
+            bool skip;
+            try
+            {
+                skip = entity is not { IsValid: true } || entity.IsOpened;
+            }
+            catch
+            {
+                continue;
+            }
+
+            if (skip)
                 continue;
 
             var type = GetChestType(entity.Path);
@@ -96,10 +118,20 @@ public partial class DeepwaterEngagementSuiteGGRN
             if (value <= 0)
                 continue;
 
-            if (maxDistance > 0 && Vector2.Distance(_playerGridPos, entity.GridPos) > maxDistance)
+            Vector2 pos;
+            try
+            {
+                pos = entity.GridPosNum;
+            }
+            catch
+            {
+                continue;
+            }
+
+            if (maxDistance > 0 && Vector2.Distance(_playerGridPos, pos) > maxDistance)
                 continue;
 
-            targets.Add(new GuideTarget(id, type, entity.GridPos, value));
+            targets.Add(new GuideTarget(entity.Id, type, pos, value));
         }
 
         return targets;
@@ -171,9 +203,24 @@ public partial class DeepwaterEngagementSuiteGGRN
         var to = GetWorldScreenPosition(next.GridPos);
 
         Graphics.DrawLine(from, to, settings.LanternRouteWidth.Value + 1, color);
+
+        var distance = Vector2.Distance(_playerGridPos, next.GridPos);
         Graphics.DrawTextWithBackground(
-            $"{GetEntityDisplayName(next.Type)}  {Vector2.Distance(_playerGridPos, next.GridPos):F0}",
-            to, color, FontAlign.Center, Color.Black);
+            $"{GetEntityDisplayName(next.Type)}  {distance:F0}", to, color, FontAlign.Center, Color.Black);
+
+        // Off-screen targets get a label pinned near the player, since the end of the line is
+        // somewhere past the edge of the window and the line alone gives no idea how far.
+        if (distance > 120)
+        {
+            var direction = to - from;
+            if (direction.LengthSquared() > 1)
+            {
+                direction /= direction.Length();
+                Graphics.DrawTextWithBackground(
+                    $"{GetEntityDisplayName(next.Type)} {distance:F0} away",
+                    from + direction * 90f, color, FontAlign.Center, Color.Black);
+            }
+        }
 
         if (!settings.ShowObjectiveList.Value)
             return;
