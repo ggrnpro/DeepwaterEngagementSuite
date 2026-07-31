@@ -1,8 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using ExileCore.PoEMemory.Components;
-using ExileCore.PoEMemory.MemoryObjects;
 using ExileCore.Shared.Enums;
 using ExileCore.Shared.Helpers;
 using ImGuiNET;
@@ -15,155 +13,147 @@ namespace DeepwaterEngagementSuiteGGRN;
 /// <summary>
 /// Tells you where to go next inside a voyage.
 ///
-/// Two rules decide the order. Golden Lanterns come first regardless of distance, because they
-/// raise quantity and rarity for the rest of the run and are therefore worth more the earlier they
-/// are taken — a lantern grabbed at the end buffs nothing. Everything else is ranked by value per
-/// unit of walking, so a rich chest across the room beats a poor one underfoot but not by so much
-/// that you cross the map for scraps.
+/// The objects come from the same cache the plugin already builds for its icons and trails. That
+/// cache is rescanned every tick and drops anything looted, so keeping a second list beside it only
+/// meant maintaining a second, worse copy of detection the plugin had already got right.
+///
+/// Two rules decide the order. Golden Lanterns come first regardless of distance: they raise
+/// quantity and rarity for the rest of the run, so one taken early buffs everything after it and
+/// one taken last buffs nothing. Everything else ranks by value per unit of walking.
+///
+/// The chosen target then sticks until it is reached or something is clearly better, because value
+/// over distance reorders on almost every step while moving, and a marker that jumps cannot be
+/// followed.
 /// </summary>
 public partial class DeepwaterEngagementSuiteGGRN
 {
-    private readonly Dictionary<uint, GuideObjective> _objectives = new();
+    /// <summary>How much better a rival must be before the guide abandons its current target.</summary>
+    private const double TargetSwitchMargin = 1.35;
 
-    private sealed record GuideObjective(uint Id, Entity Entity, string Name, double Value, bool IsMultiplier)
-    {
-        public Vector2 GridPos => Entity.GridPosNum;
-    }
+    /// <summary>Within this distance the target counts as reached and the guide moves on.</summary>
+    private const float TargetArrivalDistance = 25f;
 
-    private void TrackObjective(Entity entity)
-    {
-        if (entity == null || !Settings.VoyageSettings.ShowObjectiveGuide.Value)
-            return;
+    private uint? _currentTargetId;
 
-        foreach (var candidate in VoyageObjectiveCatalog.Defaults)
-        {
-            if (!entity.Path.Contains(candidate.PathFragment, StringComparison.OrdinalIgnoreCase))
-                continue;
-
-            _objectives[entity.Id] = new GuideObjective(
-                entity.Id, entity, candidate.Name, candidate.Value, candidate.IsMultiplier);
-
-            // The state names differ per object type and are not documented, so record them the
-            // first time each kind is seen rather than assuming the list above is complete.
-            if (Settings.VoyageSettings.EnableDebugDump)
-                Telemetry?.NoteModRecord("entity-states:" + entity.Path, () => DescribeObjectiveStates(entity));
-
-            return;
-        }
-    }
+    private void ResetGuide() => _currentTargetId = null;
 
     /// <summary>
-    /// Whether an objective has already been taken.
-    ///
-    /// Chests report it on their Chest component, but a good half of what is worth walking to in a
-    /// voyage — anchors, encounter spawners, ducat drops — are terrain objects with no Chest at
-    /// all, and checking only the component left the guide pointing at things already looted. The
-    /// entity's own flag and its state machine cover those.
+    /// Value of an object type on a scale where a plain currency chest is 100. Zero means the guide
+    /// does not send you there — the Allflame Capsule is the obvious case: you know where it is and
+    /// a line to it is just noise.
     /// </summary>
-    private static bool IsObjectiveTaken(Entity entity)
+    private static double ObjectiveValue(IconPickerIndex type) => type switch
     {
-        if (entity.IsOpened)
-            return true;
+        IconPickerIndex.GoldenLanternEncounter => 0.01, // ranked separately: it multiplies, it does not add
+        IconPickerIndex.CurrencyTreasureChestOpulent => 200,
+        IconPickerIndex.CurrencyTreasureChest => 100,
+        IconPickerIndex.StrongboxArcanist => 95,
+        IconPickerIndex.CurrencyGemcuttersChest => 90,
+        IconPickerIndex.StackedDecksChest => 85,
+        IconPickerIndex.StrongboxDivination => 85,
+        IconPickerIndex.ScarabChest => 80,
+        IconPickerIndex.StrongboxScarab => 75,
+        IconPickerIndex.TreasureAnchor => 75,
+        IconPickerIndex.SulphurChestHuge => 70,
+        IconPickerIndex.InfusedCoralEncounter => 70,
+        IconPickerIndex.UniqueWeaponChest => 55,
+        IconPickerIndex.UniqueArmourChest => 55,
+        IconPickerIndex.SulphurChestLarge => 45,
+        IconPickerIndex.CursedDucatDrop => 45,
+        IconPickerIndex.RandomDucatChest => 45,
+        IconPickerIndex.IzaroObject => 45,
+        IconPickerIndex.AllflameEmbersChest => 40,
+        IconPickerIndex.MapsChest => 30,
+        IconPickerIndex.AltarCrab => 30,
+        IconPickerIndex.AltarOctopus => 30,
+        IconPickerIndex.ClamTreasureChest => 25,
+        IconPickerIndex.TormentedSpiritEncounter => 25,
+        IconPickerIndex.SulphurChest => 20,
+        IconPickerIndex.BottledItemChest => 20,
+        IconPickerIndex.GoldTreasureChest => 15,
+        IconPickerIndex.SulphurChestSmall => 10,
+        _ => 0,
+    };
 
-        if (entity.TryGetComponent(out Chest chest) && chest.IsOpened)
-            return true;
-
-        if (entity.TryGetComponent(out StateMachine stateMachine))
-        {
-            foreach (var state in stateMachine.States)
-            {
-                if (state.Value != 1)
-                    continue;
-
-                if (state.Name is "activated" or "opened" or "used" or "collected" or "finished" or "complete")
-                    return true;
-            }
-        }
-
-        return false;
+    private readonly record struct GuideTarget(uint Id, IconPickerIndex Type, Vector2 GridPos, double Value)
+    {
+        public bool IsLantern => Type == IconPickerIndex.GoldenLanternEncounter;
     }
 
-    private void ForgetObjective(Entity entity)
-    {
-        if (entity != null)
-            _objectives.Remove(entity.Id);
-    }
-
-    private static object DescribeObjectiveStates(Entity entity)
-    {
-        try
-        {
-            return new
-            {
-                path = entity.Path,
-                isOpened = entity.IsOpened,
-                hasChest = entity.TryGetComponent<Chest>(out _),
-                states = entity.TryGetComponent(out StateMachine sm)
-                    ? sm.States.Select(x => $"{x.Name}={x.Value}").ToList()
-                    : null,
-            };
-        }
-        catch (Exception ex)
-        {
-            return $"<error: {ex.GetBaseException().Message}>";
-        }
-    }
-
-    /// <summary>Objectives still worth visiting, dropping anything opened or gone.</summary>
-    private List<GuideObjective> LiveObjectives()
-    {
-        var live = new List<GuideObjective>();
-        var stale = new List<uint>();
-
-        foreach (var objective in _objectives.Values)
-        {
-            bool gone;
-            try
-            {
-                gone = objective.Entity is not { IsValid: true } || IsObjectiveTaken(objective.Entity);
-            }
-            catch
-            {
-                gone = true;
-            }
-
-            if (gone)
-                stale.Add(objective.Id);
-            else
-                live.Add(objective);
-        }
-
-        foreach (var id in stale)
-            _objectives.Remove(id);
-
-        return live;
-    }
-
-    /// <summary>
-    /// Ranks objectives: every lantern first in shortest-route order, then the rest by value per
-    /// unit of distance.
-    /// </summary>
-    private List<GuideObjective> RankObjectives(List<GuideObjective> live)
+    /// <summary>Everything still worth visiting, taken from the plugin's own entity cache.</summary>
+    private List<GuideTarget> GuideTargets()
     {
         var maxDistance = Settings.VoyageSettings.GuideMaxDistance.Value;
-        var inRange = maxDistance <= 0
-            ? live
-            : live.Where(x => Vector2.Distance(_playerGridPos, x.GridPos) <= maxDistance).ToList();
+        var targets = new List<GuideTarget>();
 
-        var multipliers = inRange.Where(x => x.IsMultiplier).ToList();
-        var rest = inRange.Where(x => !x.IsMultiplier).ToList();
-
-        var ranked = new List<GuideObjective>();
-        if (multipliers.Count > 0)
+        foreach (var (id, entity) in _cachedEntities)
         {
-            var order = PlanPickupOrder(_playerGridPos, multipliers.Select(x => x.GridPos).ToList());
-            ranked.AddRange(order.Select(i => multipliers[i]));
+            if (entity.IsOpened)
+                continue;
+
+            var type = GetChestType(entity.Path);
+            var value = ObjectiveValue(type);
+            if (value <= 0)
+                continue;
+
+            if (maxDistance > 0 && Vector2.Distance(_playerGridPos, entity.GridPos) > maxDistance)
+                continue;
+
+            targets.Add(new GuideTarget(id, type, entity.GridPos, value));
         }
 
-        ranked.AddRange(rest
-            .OrderByDescending(x => x.Value / Math.Max(20f, Vector2.Distance(_playerGridPos, x.GridPos))));
+        return targets;
+    }
 
+    /// <summary>Lanterns first in shortest-route order, then everything else by value per step.</summary>
+    private List<GuideTarget> RankTargets(List<GuideTarget> targets)
+    {
+        var lanterns = targets.Where(x => x.IsLantern).ToList();
+        var rest = targets.Where(x => !x.IsLantern).ToList();
+
+        var ranked = new List<GuideTarget>(targets.Count);
+        if (lanterns.Count > 0)
+        {
+            var order = PlanPickupOrder(_playerGridPos, lanterns.Select(x => x.GridPos).ToList());
+            ranked.AddRange(order.Select(i => lanterns[i]));
+        }
+
+        ranked.AddRange(rest.OrderByDescending(Density));
         return ranked;
+    }
+
+    private double Density(GuideTarget target) =>
+        target.Value / Math.Max(TargetArrivalDistance, Vector2.Distance(_playerGridPos, target.GridPos));
+
+    /// <summary>
+    /// Picks what to walk to, preferring to stay on the current target. Ranking by value over
+    /// distance reorders constantly while moving, so without this the line flicks between objects
+    /// several times a second.
+    /// </summary>
+    private GuideTarget? ChooseTarget(List<GuideTarget> ranked)
+    {
+        if (ranked.Count == 0)
+        {
+            _currentTargetId = null;
+            return null;
+        }
+
+        var leader = ranked[0];
+
+        if (_currentTargetId is { } currentId && ranked.Any(x => x.Id == currentId))
+        {
+            var current = ranked.First(x => x.Id == currentId);
+            var arrived = Vector2.Distance(_playerGridPos, current.GridPos) <= TargetArrivalDistance;
+
+            // A lantern outranks anything that is not one, so never hold a chest in front of one.
+            var leaderOutclasses = leader.IsLantern && !current.IsLantern;
+
+            if (!arrived && !leaderOutclasses && Density(leader) < Density(current) * TargetSwitchMargin)
+                return current;
+        }
+
+        _currentTargetId = leader.Id;
+        return leader;
     }
 
     private void DrawObjectiveGuide()
@@ -172,20 +162,17 @@ public partial class DeepwaterEngagementSuiteGGRN
         if (!settings.ShowObjectiveGuide.Value)
             return;
 
-        var ranked = RankObjectives(LiveObjectives());
-        if (ranked.Count == 0)
+        var ranked = RankTargets(GuideTargets());
+        if (ChooseTarget(ranked) is not { } next)
             return;
 
-        var next = ranked[0];
+        var color = next.IsLantern ? settings.LanternRouteColor.Value : settings.GuideColor.Value;
         var from = GetWorldScreenPosition(_playerGridPos);
         var to = GetWorldScreenPosition(next.GridPos);
-        var color = next.IsMultiplier
-            ? settings.LanternRouteColor.Value
-            : settings.GuideColor.Value;
 
         Graphics.DrawLine(from, to, settings.LanternRouteWidth.Value + 1, color);
         Graphics.DrawTextWithBackground(
-            $"{next.Name}  {Vector2.Distance(_playerGridPos, next.GridPos):F0}",
+            $"{GetEntityDisplayName(next.Type)}  {Vector2.Distance(_playerGridPos, next.GridPos):F0}",
             to, color, FontAlign.Center, Color.Black);
 
         if (!settings.ShowObjectiveList.Value)
@@ -197,7 +184,7 @@ public partial class DeepwaterEngagementSuiteGGRN
             return;
         }
 
-        var lanternsLeft = ranked.Count(x => x.IsMultiplier);
+        var lanternsLeft = ranked.Count(x => x.IsLantern);
         if (lanternsLeft > 0)
         {
             ImGui.TextColored(settings.LanternRouteColor.Value.ToImguiVec4(),
@@ -211,18 +198,18 @@ public partial class DeepwaterEngagementSuiteGGRN
             ImGui.TableSetupColumn("Dist", ImGuiTableColumnFlags.WidthFixed, 50);
             ImGui.TableHeadersRow();
 
-            foreach (var (objective, index) in ranked.Take(settings.GuideListLength.Value).Select((x, i) => (x, i)))
+            foreach (var (target, index) in ranked.Take(settings.GuideListLength.Value).Select((x, i) => (x, i)))
             {
                 ImGui.TableNextRow();
                 ImGui.TableNextColumn();
-                ImGui.Text($"{index + 1}");
+                ImGui.Text(target.Id == _currentTargetId ? ">" : $"{index + 1}");
                 ImGui.TableNextColumn();
-                if (objective.IsMultiplier)
-                    ImGui.TextColored(settings.LanternRouteColor.Value.ToImguiVec4(), objective.Name);
+                if (target.IsLantern)
+                    ImGui.TextColored(settings.LanternRouteColor.Value.ToImguiVec4(), GetEntityDisplayName(target.Type));
                 else
-                    ImGui.Text(objective.Name);
+                    ImGui.Text(GetEntityDisplayName(target.Type));
                 ImGui.TableNextColumn();
-                ImGui.Text($"{Vector2.Distance(_playerGridPos, objective.GridPos):F0}");
+                ImGui.Text($"{Vector2.Distance(_playerGridPos, target.GridPos):F0}");
             }
 
             ImGui.EndTable();

@@ -161,7 +161,7 @@ public partial class DeepwaterEngagementSuiteGGRN : BaseSettingsPlugin<Deepwater
         _editedIndex = null;
         _editedPathEval = null;
         _cachedEntities.Clear();
-        _objectives.Clear();
+        ResetGuide();
         ResetTrailTracking();
         _zoneCleared = false;
         _pathfindingData = GameController.IngameState.Data.RawPathfindingData;
@@ -184,6 +184,8 @@ public partial class DeepwaterEngagementSuiteGGRN : BaseSettingsPlugin<Deepwater
             var a when a.StartsWith("Metadata/Terrain/Leagues/Deepwater/Objects/DeepwaterCursedDucatDrop", StringComparison.Ordinal) => ExpeditionEntityType.Marker,
             var a when a.StartsWith("Metadata/Terrain/Leagues/Deepwater/Objects/DeepwaterLanternReplenishEncounter", StringComparison.Ordinal) => ExpeditionEntityType.Marker,
             var a when a.StartsWith("Metadata/Terrain/Leagues/Deepwater/Objects/DeepwaterGoldenLantern", StringComparison.Ordinal) => ExpeditionEntityType.Marker,
+            var a when a.StartsWith("Metadata/Terrain/Leagues/Deepwater/Objects/ResourceChest", StringComparison.Ordinal) => ExpeditionEntityType.Marker,
+            var a when a.StartsWith("Metadata/Terrain/Leagues/Deepwater/Objects/DeepwaterAnchor", StringComparison.Ordinal) => ExpeditionEntityType.Marker,
             var a when a.StartsWith("Metadata/Terrain/Leagues/Deepwater/Objects/DeepwaterBrineCoralEncounter", StringComparison.Ordinal) => ExpeditionEntityType.Marker,
             _ => ExpeditionEntityType.None,
         });
@@ -214,6 +216,11 @@ public partial class DeepwaterEngagementSuiteGGRN : BaseSettingsPlugin<Deepwater
         var p when p.Contains("DeepwaterTormentedSpiritEncounter", StringComparison.Ordinal) => IconPickerIndex.TormentedSpiritEncounter,
         var p when p.Contains("DeepwaterLanternReplenishEncounter", StringComparison.Ordinal) => IconPickerIndex.LanternReplenishEncounter,
         var p when p.StartsWith("Metadata/Terrain/Leagues/Deepwater/Objects/DeepwaterGoldenLantern", StringComparison.Ordinal) => IconPickerIndex.GoldenLanternEncounter,
+        var p when p.Contains("Objects/ResourceChestHuge", StringComparison.Ordinal) => IconPickerIndex.SulphurChestHuge,
+        var p when p.Contains("Objects/ResourceChestLarge", StringComparison.Ordinal) => IconPickerIndex.SulphurChestLarge,
+        var p when p.Contains("Objects/ResourceChestSmall", StringComparison.Ordinal) => IconPickerIndex.SulphurChestSmall,
+        var p when p.Contains("Objects/ResourceChestBase", StringComparison.Ordinal) => IconPickerIndex.SulphurChest,
+        var p when p.Contains("Objects/DeepwaterAnchor", StringComparison.Ordinal) => IconPickerIndex.TreasureAnchor,
         var p when p.StartsWith("Metadata/Terrain/Leagues/Deepwater/Objects/DeepwaterBrineCoralEncounter", StringComparison.Ordinal) => IconPickerIndex.InfusedCoralEncounter,
         _ => IconPickerIndex.OtherChests,
     };
@@ -1062,8 +1069,6 @@ public partial class DeepwaterEngagementSuiteGGRN : BaseSettingsPlugin<Deepwater
         if (Settings.VoyageSettings.EnableDebugDump)
             Telemetry?.NoteEntity(entity.Path);
 
-        TrackObjective(entity);
-
         if ((entity.Type is EntityType.Chest or EntityType.Terrain or EntityType.IngameIcon)
             && GetEntityType(entity.Path) != ExpeditionEntityType.None
             && !IsEntityCompleted(entity, GetChestType(entity.Path)))
@@ -1076,7 +1081,6 @@ public partial class DeepwaterEngagementSuiteGGRN : BaseSettingsPlugin<Deepwater
     public override void EntityRemoved(Entity entity)
     {
         _cachedEntities.Remove(entity.Id);
-        ForgetObjective(entity);
     }
 
     private static EntityCacheItem BuildCacheItem(Entity entity)
@@ -1120,6 +1124,11 @@ public partial class DeepwaterEngagementSuiteGGRN : BaseSettingsPlugin<Deepwater
         IconPickerIndex.TormentedSpiritEncounter => "Tormented Spirit",
         IconPickerIndex.LanternReplenishEncounter => "Lantern Replenish",
         IconPickerIndex.GoldenLanternEncounter => "Golden Lantern",
+        IconPickerIndex.SulphurChestHuge => "Sulphur (Huge)",
+        IconPickerIndex.SulphurChestLarge => "Sulphur (Large)",
+        IconPickerIndex.SulphurChest => "Sulphur",
+        IconPickerIndex.SulphurChestSmall => "Sulphur (Small)",
+        IconPickerIndex.TreasureAnchor => "Treasure Anchor",
         IconPickerIndex.InfusedCoralEncounter => "Infused Coral",
         IconPickerIndex.StrongboxDivination => "Card box",
         IconPickerIndex.StrongboxScarab => "Scarab box",
