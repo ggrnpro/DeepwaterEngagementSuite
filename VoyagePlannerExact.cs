@@ -34,7 +34,28 @@ public class VoyagePlannerExact
     private const int RefinementPasses = 3;
 
     /// <summary>How many of the best boards get an exhaustive swap search on the true objective.</summary>
-    private const int PolishCount = 40;
+    private const int PolishCount = 250;
+
+    /// <summary>
+    /// A board shape that at least one assignment fits, kept so the search can start again from a
+    /// random assignment of that shape instead of only from the one the linearisation produced.
+    /// </summary>
+    /// <param name="Connections">
+    /// Required connection count per tile, or -1 where any count will do. Only tiles carrying a
+    /// per-connection border care how many stubs hang off the board edge; pinning the rest would
+    /// throw away most of the legal boards.
+    /// </param>
+    private readonly record struct FeasibleShape(Direction[] Required, int[] Connections);
+
+    /// <summary>
+    /// Starting guesses for how much raw value lands on a tile, used to seed the refinement.
+    ///
+    /// Seeding with zero makes the first solve ignore self multipliers entirely and chase raw
+    /// content, which converges on a board that is good at delivering and bad at keeping. Seeding
+    /// high does the opposite. Running both and keeping the better result reaches boards neither
+    /// seed finds alone.
+    /// </summary>
+    private static readonly double[] IncomingSeeds = [0, 100];
 
     // Same direction convention as VoyagePlanner: Up = row+1, Down = row-1, Left = col-1, Right = col+1.
     private static readonly (Direction Dir, int Dr, int Dc)[] Dirs =
@@ -159,6 +180,21 @@ public class VoyagePlannerExact
     /// <summary>Number of edge patterns that produced a placeable board.</summary>
     public long FeasiblePatterns { get; private set; }
 
+    /// <summary>How many restarts and kicks the search stage got through.</summary>
+    public long SearchIterations { get; private set; }
+
+    /// <summary>Board shapes the search stage could restart from.</summary>
+    public long ShapeCount { get; private set; }
+
+    /// <summary>
+    /// Seconds of search that had elapsed when the best board was last improved. Comparing it with
+    /// the time limit says whether the search had settled or was cut off mid-climb.
+    /// </summary>
+    public double LastImprovementSeconds { get; private set; }
+
+    /// <summary>Seconds the search actually ran.</summary>
+    public double ElapsedSeconds { get; private set; }
+
     public void Cancel() => _cancelled = true;
 
     public VoyageSolutionResult Solve(VoyagePuzzle puzzle, VoyagePlannerSettings settings = null)
@@ -252,6 +288,7 @@ public class VoyagePlannerExact
         var connOptions = new int[CellCount][];
 
         var best = new List<VoyageSolution>();
+        var shapes = new List<FeasibleShape>();
         long evaluated = 0;
         long skipped = 0;
 
@@ -322,57 +359,66 @@ public class VoyagePlannerExact
                 // A chart's own quantity scales what its neighbours put in its area, so the value of
                 // a placement depends on its neighbours and the assignment is no longer linear.
                 // Iterate: solve the linear part, read the resulting multipliers back, solve again.
-                // The first pass has no estimate and so maximises raw content.
                 var rawIncoming = new double[CellCount][];
                 for (var cell = 0; cell < CellCount; cell++)
                     rawIncoming[cell] = new double[maskCount];
 
                 var voyageMult = new double[maskCount];
-                Array.Fill(voyageMult, 1.0);
 
                 MapPiecePlacement[,] bestGrid = null;
                 var bestScore = double.NegativeInfinity;
                 var infeasible = false;
 
-                for (var iteration = 0; iteration < RefinementPasses; iteration++)
+                foreach (var seed in IncomingSeeds)
                 {
-                    var feasible = BuildCostMatrix(
-                        scorer, pieces, rotations, locked, required, conn, connSensitive, s,
-                        rawIncoming, voyageMult, cost, chosenRotation);
-
-                    if (!feasible)
-                    {
-                        infeasible = true;
-                        break;
-                    }
-
-                    var total = Hungarian.Solve(cost, CellCount, pieceCount, assignment);
-                    if (double.IsPositiveInfinity(total))
-                    {
-                        infeasible = true;
-                        break;
-                    }
-
-                    var grid = new MapPiecePlacement[GridSize, GridSize];
                     for (var cell = 0; cell < CellCount; cell++)
+                        Array.Fill(rawIncoming[cell], seed);
+
+                    Array.Fill(voyageMult, 1.0);
+
+                    for (var iteration = 0; iteration < RefinementPasses; iteration++)
                     {
-                        var pieceIdx = assignment[cell];
-                        var piece = pieces[pieceIdx];
-                        var rot = chosenRotation[cell, pieceIdx];
-                        grid[cell / GridSize, cell % GridSize] =
-                            new MapPiecePlacement(piece, rot, piece.GetConnections(rot));
+                        var feasible = BuildCostMatrix(
+                            scorer, pieces, rotations, locked, required, conn, connSensitive, s,
+                            rawIncoming, voyageMult, cost, chosenRotation);
+
+                        if (!feasible)
+                        {
+                            infeasible = true;
+                            break;
+                        }
+
+                        var total = Hungarian.Solve(cost, CellCount, pieceCount, assignment);
+                        if (double.IsPositiveInfinity(total))
+                        {
+                            infeasible = true;
+                            break;
+                        }
+
+                        var grid = new MapPiecePlacement[GridSize, GridSize];
+                        for (var cell = 0; cell < CellCount; cell++)
+                        {
+                            var pieceIdx = assignment[cell];
+                            var piece = pieces[pieceIdx];
+                            var rot = chosenRotation[cell, pieceIdx];
+                            grid[cell / GridSize, cell % GridSize] =
+                                new MapPiecePlacement(piece, rot, piece.GetConnections(rot));
+                        }
+
+                        // Score through the shared scorer rather than trusting the assignment total:
+                        // the linearised objective is only an approximation, the scorer is the truth.
+                        var score = scorer.Score(grid);
+                        if (score > bestScore)
+                        {
+                            bestScore = score;
+                            bestGrid = grid;
+                        }
+
+                        UpdateEstimates(scorer, pieces, assignment, conn, maskCount, rawIncoming, voyageMult);
                     }
 
-                    // Score through the shared scorer rather than trusting the assignment total:
-                    // the linearised objective is only an approximation, the scorer is the truth.
-                    var score = scorer.Score(grid);
-                    if (score > bestScore)
-                    {
-                        bestScore = score;
-                        bestGrid = grid;
-                    }
-
-                    UpdateEstimates(scorer, pieces, assignment, conn, maskCount, rawIncoming, voyageMult);
+                    if (infeasible)
+                        break;
                 }
 
                 if (infeasible || bestGrid == null)
@@ -384,17 +430,43 @@ public class VoyagePlannerExact
                 evaluated++;
                 FeasiblePatterns++;
                 best.Add(new VoyageSolution(bestGrid, bestScore, requireConnected));
+                var shapeConn = new int[CellCount];
+                for (var cell = 0; cell < CellCount; cell++)
+                    shapeConn[cell] = connSensitive[cell] ? conn[cell] : -1;
+
+                shapes.Add(new FeasibleShape((Direction[])required.Clone(), shapeConn));
             }
         }
 
-        // The linearisation can leave a board one swap short of its own optimum, so the strongest
-        // candidates get an exhaustive swap search scored by the real scorer.
-        var polished = best
+        // The linearised assignment reliably finds strong boards but not the best one, because a
+        // chart's own quantity makes the value of a placement depend on its neighbours. Searching
+        // from many of those boards with the real scorer closes the gap; whatever time is left then
+        // goes into kicking the leader out of its local optimum and searching again.
+        var candidates = best
             .OrderByDescending(x => x.TotalScore)
             .DistinctBy(GridSignature)
             .Take(PolishCount)
-            .Select(x => Polish(scorer, pieces, x, requireConnected))
             .ToList();
+
+        var polishRandom = new Random(20260731);
+        var polished = new List<VoyageSolution>(candidates.Count);
+        foreach (var candidate in candidates)
+        {
+            if (_cancelled || OutOfTime(settings, stopwatch))
+            {
+                polished.Add(candidate);
+                continue;
+            }
+
+            polished.Add(Polish(scorer, pieces, candidate, requireConnected, polishRandom));
+        }
+
+        polished = polished.OrderByDescending(x => x.TotalScore).DistinctBy(GridSignature).ToList();
+        ShapeCount = shapes.Count;
+        if (polished.Count > 0)
+            polished = IteratedSearch(scorer, pieces, rotations, shapes, polished, requireConnected, settings, stopwatch);
+
+        ElapsedSeconds = stopwatch.Elapsed.TotalSeconds;
 
         var top = polished
             .OrderByDescending(x => x.TotalScore)
@@ -538,6 +610,155 @@ public class VoyagePlannerExact
         return true;
     }
 
+    private static bool OutOfTime(VoyagePlannerSettings settings, Stopwatch stopwatch) =>
+        settings.TimeLimitSeconds is > 0 && stopwatch.Elapsed.TotalSeconds >= settings.TimeLimitSeconds.Value;
+
+    /// <summary>
+    /// Spends the remaining time budget escaping local optima: perturb a leading board by forcing a
+    /// few charts out of it, search again from there, and keep whatever comes back better. Boards
+    /// only ever replace worse ones, so the result cannot regress.
+    /// </summary>
+    private List<VoyageSolution> IteratedSearch(
+        VoyageScorer scorer,
+        List<MapPiece> pieces,
+        (int Rotation, Direction Connections)[][] rotations,
+        List<FeasibleShape> shapes,
+        List<VoyageSolution> seeds,
+        bool requireConnected,
+        VoyagePlannerSettings settings,
+        Stopwatch stopwatch)
+    {
+        // Deterministic: the same board must always produce the same plan.
+        var random = new Random(20260731);
+        var pool = seeds.ToList();
+        var attempt = 0;
+
+        while (!_cancelled && !OutOfTime(settings, stopwatch))
+        {
+            attempt++;
+
+            SearchIterations++;
+
+            // Alternate between nudging a leading board and starting over from a random assignment
+            // of a shape known to fit. The linearised solve lands in a good local optimum that swaps
+            // alone cannot leave, so fresh starts are what actually finds better boards.
+            VoyageSolution candidate;
+            if (attempt % 2 == 0 || shapes.Count == 0)
+            {
+                var seed = pool[random.Next(Math.Min(8, pool.Count))];
+                candidate = Kick(scorer, pieces, seed, random, requireConnected);
+            }
+            else
+            {
+                candidate = RandomBoard(scorer, pieces, rotations, shapes[random.Next(shapes.Count)],
+                    random, requireConnected);
+            }
+
+            if (candidate == null)
+                continue;
+
+            var improved = Polish(scorer, pieces, candidate, requireConnected, random);
+            if (improved.TotalScore <= pool[^1].TotalScore && pool.Count >= PolishCount)
+                continue;
+
+            var previousBest = pool[0].TotalScore;
+            pool.Add(improved);
+            pool = pool.OrderByDescending(x => x.TotalScore).DistinctBy(GridSignature).ToList();
+            if (pool.Count > PolishCount)
+                pool.RemoveRange(PolishCount, pool.Count - PolishCount);
+
+            if (pool[0].TotalScore > previousBest + 1e-9)
+                LastImprovementSeconds = stopwatch.Elapsed.TotalSeconds;
+        }
+
+        return pool;
+    }
+
+    /// <summary>
+    /// Builds a random legal board of a known-feasible shape. Returns null if the random choices
+    /// paint the board into a corner, which the caller simply retries.
+    /// </summary>
+    private static VoyageSolution RandomBoard(
+        VoyageScorer scorer,
+        List<MapPiece> pieces,
+        (int Rotation, Direction Connections)[][] rotations,
+        FeasibleShape shape,
+        Random random,
+        bool requireConnected)
+    {
+        var grid = new MapPiecePlacement[GridSize, GridSize];
+        var used = new bool[pieces.Count];
+
+        for (var cell = 0; cell < CellCount; cell++)
+        {
+            var options = new List<(int Piece, int Rotation)>();
+            for (var pieceIdx = 0; pieceIdx < pieces.Count; pieceIdx++)
+            {
+                if (used[pieceIdx])
+                    continue;
+
+                foreach (var (rot, conns) in rotations[pieceIdx])
+                {
+                    if ((conns & InternalDirs[cell]) != shape.Required[cell])
+                        continue;
+                    if (shape.Connections[cell] >= 0 && conns.CountConnections() != shape.Connections[cell])
+                        continue;
+
+                    options.Add((pieceIdx, rot));
+                    break;
+                }
+            }
+
+            if (options.Count == 0)
+                return null;
+
+            var (pick, rotation) = options[random.Next(options.Count)];
+            used[pick] = true;
+            grid[cell / GridSize, cell % GridSize] =
+                new MapPiecePlacement(pieces[pick], rotation, pieces[pick].GetConnections(rotation));
+        }
+
+        return new VoyageSolution(grid, scorer.Score(grid), requireConnected);
+    }
+
+    /// <summary>
+    /// Replaces two random tiles' charts with random unused charts of the same connection shape.
+    /// Returns null when the shapes leave nothing to swap in.
+    /// </summary>
+    private static VoyageSolution Kick(
+        VoyageScorer scorer,
+        List<MapPiece> pieces,
+        VoyageSolution solution,
+        Random random,
+        bool requireConnected)
+    {
+        var grid = (MapPiecePlacement[,])solution.Grid.Clone();
+        var placed = new HashSet<int>();
+        for (var cell = 0; cell < CellCount; cell++)
+            placed.Add(grid[cell / GridSize, cell % GridSize].Piece.Id);
+
+        var changed = false;
+        for (var attempt = 0; attempt < 2; attempt++)
+        {
+            var cell = random.Next(CellCount);
+            var current = grid[cell / GridSize, cell % GridSize];
+            var options = pieces
+                .Where(p => !placed.Contains(p.Id) && FindRotation(p, current.Connections) >= 0)
+                .ToList();
+            if (options.Count == 0)
+                continue;
+
+            var pick = options[random.Next(options.Count)];
+            placed.Remove(current.Piece.Id);
+            placed.Add(pick.Id);
+            grid[cell / GridSize, cell % GridSize] =
+                new MapPiecePlacement(pick, FindRotation(pick, current.Connections), current.Connections);
+            changed = true;
+        }
+
+        return changed ? new VoyageSolution(grid, scorer.Score(grid), requireConnected) : null;
+    }
+
     /// <summary>
     /// Improves a board by swapping placed charts with each other and with unused ones, keeping the
     /// board's connection shape intact and judging every candidate with the real scorer. Runs until
@@ -547,7 +768,8 @@ public class VoyagePlannerExact
         VoyageScorer scorer,
         List<MapPiece> pieces,
         VoyageSolution solution,
-        bool requireConnected)
+        bool requireConnected,
+        Random random)
     {
         var grid = (MapPiecePlacement[,])solution.Grid.Clone();
         var score = solution.TotalScore;
@@ -592,6 +814,9 @@ public class VoyagePlannerExact
             for (var cell = 0; cell < CellCount && !improved; cell++)
             {
                 var current = grid[cell / GridSize, cell % GridSize];
+
+                // Scanning every unused chart is what makes a pass strong. Sampling was tried and
+                // bought 3x the passes for no gain in score, so thoroughness wins over throughput.
                 foreach (var piece in pieces)
                 {
                     if (placed.Contains(piece.Id))

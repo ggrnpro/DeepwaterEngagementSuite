@@ -37,6 +37,8 @@ public partial class DeepwaterEngagementSuiteGGRN
     private System.Diagnostics.Stopwatch _voyageStopwatch;
     private VoyagePlannerExact _voyageExactPlanner;
     private string _voyageDiagnostics;
+    private long _voyageSearchIterations;
+    private double _voyageLastImprovement;
 
     public List<NormalInventoryItem> GetAvailableCharts()
     {
@@ -456,6 +458,8 @@ public partial class DeepwaterEngagementSuiteGGRN
                     _voyageNodesExplored = r.NodesExplored;
                     _voyageNodesPruned = r.NodesPruned;
                     _voyageDiagnostics = _voyageExactPlanner.Diagnostics;
+                    _voyageSearchIterations = _voyageExactPlanner.SearchIterations;
+                    _voyageLastImprovement = _voyageExactPlanner.LastImprovementSeconds;
                 }
                 else
                 {
@@ -530,6 +534,26 @@ public partial class DeepwaterEngagementSuiteGGRN
         if (_voyageSolving || _result != null)
         {
             ImGui.Text($"Nodes: {_voyageNodesExplored:N0} explored, {_voyageNodesPruned:N0} pruned");
+
+            // Modelling a chart's own quantity made placement quadratic, so the last stage is a
+            // randomised search. Whether it had stopped finding better boards before the clock ran
+            // out is the honest measure of whether this board is worth trusting as the best one.
+            if (_voyageSearchIterations > 0 && !_voyageSolving)
+            {
+                var limit = Settings.VoyageSettings.SolverTimeLimitSeconds.Value;
+                var idle = _voyageElapsed - _voyageLastImprovement;
+                if (_voyageLastImprovement <= 0 || idle > limit * 0.4)
+                {
+                    ImGui.TextColored(Color.Lime.ToImguiVec4(),
+                        $"Search settled: {_voyageSearchIterations:N0} rounds, nothing better for the last {idle:F1}s.");
+                }
+                else
+                {
+                    ImGui.TextColored(Color.Orange.ToImguiVec4(),
+                        $"Still improving when time ran out (last gain at {_voyageLastImprovement:F1}s of {limit}s). " +
+                        "Raise the solver time limit for a better board.");
+                }
+            }
         }
 
         if (_result == null || _result.Solutions.Count == 0)

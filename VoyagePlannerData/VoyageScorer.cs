@@ -87,6 +87,8 @@ public class VoyageScorer
 
     private readonly RewardStatWeights _weights;
     private readonly ModifierTag[] _masks;
+    private readonly double[][] _selfScratch = new double[CellCount][];
+    private readonly double[] _voyageScratch;
 
     public VoyageScorer(VoyagePuzzle puzzle)
     {
@@ -107,6 +109,7 @@ public class VoyageScorer
         _maskIndex = maskIndex;
         _maskCount = maskIndex.Count;
         _sScratch = new double[_maskCount];
+        _voyageScratch = new double[_maskCount];
         var masks = new ModifierTag[_maskCount];
         foreach (var (mask, idx) in maskIndex)
             masks[idx] = mask;
@@ -328,8 +331,10 @@ public class VoyageScorer
 
     private double ScoreInternal(MapPiecePlacement[,] grid, double[,] cellsOut)
     {
+        // Scoring is the search's inner loop — hundreds of thousands of calls per solve — so the
+        // per-call buffers are reused rather than allocated.
         var conn = _connScratch;
-        var self = new double[CellCount][];
+        var self = _selfScratch;
         for (var cell = 0; cell < CellCount; cell++)
         {
             var placement = grid[cell / GridSize, cell % GridSize];
@@ -337,7 +342,7 @@ public class VoyageScorer
             self[cell] = _selfMult[_pieceIndex[placement.Piece]];
         }
 
-        var voyage = new double[_maskCount];
+        var voyage = _voyageScratch;
         VoyageMultipliers(grid, voyage);
 
         // Sum over the board of each tile's multiplier, per mask — the factor for global mods.
