@@ -396,6 +396,18 @@ public class VoyageSettings
     [Menu("Gold weight", "Gold is worth little to a currency-focused run.")]
     public RangeNode<float> GoldWeight { get; set; } = new RangeNode<float>(0.2f, 0f, 2f);
 
+    [Menu("Show strongbox advice",
+        "When a strongbox is near, reads its modifiers, totals the item quantity and rarity they " +
+        "grant, and says whether to open it or reroll it and with what.")]
+    public ToggleNode ShowStrongboxAdvice { get; set; } = new ToggleNode(true);
+
+    [Menu("Strongbox range", "How close a strongbox must be before its advice is shown.")]
+    public RangeNode<int> StrongboxRange { get; set; } = new RangeNode<int>(80, 10, 500);
+
+    [Menu("Reroll strongbox below percentile",
+        "Advise a Chaos Orb while a Rare box's quantity is worse than this share of the Rare boxes seen.")]
+    public RangeNode<float> StrongboxRerollBelowPercentile { get; set; } = new RangeNode<float>(50f, 0f, 100f);
+
     [Menu("Show voyage guide",
         "Inside a voyage, draws a line to the objective worth going to next and ranks the rest. " +
         "Golden Lanterns always come first: they raise quantity and rarity for the remainder of the " +

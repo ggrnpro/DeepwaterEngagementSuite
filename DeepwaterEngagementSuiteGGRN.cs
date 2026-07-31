@@ -497,6 +497,7 @@ public partial class DeepwaterEngagementSuiteGGRN : BaseSettingsPlugin<Deepwater
         TrackVoyageRun();
         DrawLanternRoute();
         DrawObjectiveGuide();
+        DrawStrongboxAdvice();
         var largePanelsOpen = GameController.IngameState.IngameUi.FullscreenPanels.Any(x => x.IsVisible) ||
                           GameController.IngameState.IngameUi.LargePanels.Any(x => x.IsVisible);
 
