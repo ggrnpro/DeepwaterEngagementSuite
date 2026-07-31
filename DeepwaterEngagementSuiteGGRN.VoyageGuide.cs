@@ -81,26 +81,45 @@ public partial class DeepwaterEngagementSuiteGGRN
         public bool IsLantern => Type == IconPickerIndex.GoldenLanternEncounter;
     }
 
-    /// <summary>Everything in the voyage still worth visiting, according to the server.</summary>
+    /// <summary>
+    /// Objects to consider guiding to.
+    ///
+    /// The deepwater handler's own list is preferred: it covers the whole area regardless of what is
+    /// loaded around the player and reports each object's opened state directly. A single charted
+    /// area is not a voyage, though, and whether the handler is populated there is not something to
+    /// assume, so an empty list falls back to the entities the client has loaded. That is narrower
+    /// but always present, which makes the guide work inside a chart as well as inside a voyage.
+    /// </summary>
+    private IEnumerable<Entity> CandidateEntities()
+    {
+        try
+        {
+            if (Handler?.StaticEntities is { Count: > 0 } statics)
+                return statics;
+        }
+        catch
+        {
+            // handler is not available outside league content
+        }
+
+        try
+        {
+            return new[] { EntityType.Chest, EntityType.Terrain, EntityType.IngameIcon }
+                .SelectMany(x => GameController.EntityListWrapper.ValidEntitiesByType[x]);
+        }
+        catch
+        {
+            return [];
+        }
+    }
+
+    /// <summary>Everything still worth visiting, wherever the player is.</summary>
     private List<GuideTarget> GuideTargets()
     {
         var maxDistance = Settings.VoyageSettings.GuideMaxDistance.Value;
         var targets = new List<GuideTarget>();
 
-        List<Entity> statics;
-        try
-        {
-            statics = Handler?.StaticEntities;
-        }
-        catch
-        {
-            return targets;
-        }
-
-        if (statics == null)
-            return targets;
-
-        foreach (var entity in statics)
+        foreach (var entity in CandidateEntities())
         {
             bool skip;
             try

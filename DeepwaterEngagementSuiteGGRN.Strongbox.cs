@@ -154,21 +154,8 @@ public partial class DeepwaterEngagementSuiteGGRN
 
     private StrongboxReading? NearestStrongbox()
     {
-        List<Entity> statics;
-        try
-        {
-            statics = Handler?.StaticEntities;
-        }
-        catch
-        {
-            return null;
-        }
-
-        if (statics == null)
-            return null;
-
         StrongboxReading? best = null;
-        foreach (var entity in statics)
+        foreach (var entity in CandidateEntities())
         {
             if (ReadStrongbox(entity) is not { } reading)
                 continue;

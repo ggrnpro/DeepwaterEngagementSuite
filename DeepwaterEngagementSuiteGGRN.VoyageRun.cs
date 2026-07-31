@@ -46,6 +46,10 @@ public partial class DeepwaterEngagementSuiteGGRN
                 isHideout = area?.IsHideout,
                 stats = CollectTrackedStats(),
                 buffs = CollectBuffs(),
+                // Which object source the guide will have in this area. A charted area may not
+                // populate the handler, and knowing that is the difference between the guide
+                // working there and silently having nothing to point at.
+                serverEntities = SafeStaticEntityCount(),
             });
         }
         catch (Exception ex)
@@ -114,6 +118,18 @@ public partial class DeepwaterEngagementSuiteGGRN
                 result.Add(new { buff.Name, buff.Charges, timer = buff.Timer });
 
             return result;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private int? SafeStaticEntityCount()
+    {
+        try
+        {
+            return Handler?.StaticEntities?.Count;
         }
         catch
         {
