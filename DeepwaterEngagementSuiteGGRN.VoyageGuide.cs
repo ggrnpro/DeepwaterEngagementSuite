@@ -241,7 +241,24 @@ public partial class DeepwaterEngagementSuiteGGRN
 
         var ranked = RankTargets(GuideTargets());
         if (ChooseTarget(ranked) is not { } next)
+        {
+            // Say so rather than drawing nothing. A guide that is broken and a guide with nothing
+            // worth pointing at look identical on screen, and that cost a whole session of charts
+            // once already.
+            if (settings.ShowObjectiveList.Value && _lastCandidateCount >= 0)
+            {
+                if (ImGui.Begin("Voyage Guide", ImGuiWindowFlags.AlwaysAutoResize))
+                {
+                    ImGui.TextDisabled(_lastCandidateCount == 0
+                        ? "No objects loaded at all - nothing to guide to."
+                        : $"Nothing worth going to among the {_lastCandidateCount} objects loaded.");
+                }
+
+                ImGui.End();
+            }
+
             return;
+        }
 
         var color = next.IsLantern ? settings.LanternRouteColor.Value : settings.GuideColor.Value;
         var from = GetWorldScreenPosition(_playerGridPos);
