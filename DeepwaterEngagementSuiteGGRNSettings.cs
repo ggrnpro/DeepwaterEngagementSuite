@@ -367,6 +367,24 @@ public class VoyageSettings
         "When no fully connected board is possible it shows the best disconnected one and explains why.")]
     public ToggleNode UseAssignmentSolver { get; set; } = new ToggleNode(true);
 
+    // A chart's own reward stats scale everything dropping in the area it opens. Item Quantity does
+    // that directly, so it counts at face value; the rest are worth less per point for a
+    // currency-focused run, which is what these weights express.
+    [Menu("Item Quantity weight", "How much a chart's own Item Quantity counts. 1 = at face value.")]
+    public RangeNode<float> QuantityWeight { get; set; } = new RangeNode<float>(1f, 0f, 2f);
+
+    [Menu("Item Rarity weight", "Rarity shifts item tiers rather than drop counts, so it is worth less than quantity.")]
+    public RangeNode<float> RarityWeight { get; set; } = new RangeNode<float>(0.5f, 0f, 2f);
+
+    [Menu("Pack Size weight", "Pack size adds monsters rather than drops per monster.")]
+    public RangeNode<float> PackSizeWeight { get; set; } = new RangeNode<float>(0.6f, 0f, 2f);
+
+    [Menu("Dead Man's Sulphur weight", "Sulphur pays for rerolls and Allflame crafting, so it converts back into currency.")]
+    public RangeNode<float> SulphurWeight { get; set; } = new RangeNode<float>(1f, 0f, 2f);
+
+    [Menu("Gold weight", "Gold is worth little to a currency-focused run.")]
+    public RangeNode<float> GoldWeight { get; set; } = new RangeNode<float>(0.2f, 0f, 2f);
+
     [Menu("Show reroll advice", "Compares the current board against every board you have solved before.")]
     public ToggleNode ShowRerollAdvice { get; set; } = new ToggleNode(true);
 

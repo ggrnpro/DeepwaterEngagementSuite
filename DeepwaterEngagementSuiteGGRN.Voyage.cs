@@ -299,6 +299,16 @@ public partial class DeepwaterEngagementSuiteGGRN
         for (int i = 0; i < charts.Count; i++) {
             var pos = charts[i].GetClientRectCache.TopLeft.ToVector2Num();
             var size = Graphics.DrawTextWithBackground($"#{i}", pos, Color.Black);
+
+            // The chart's own reward stats decide how much of what lands in its area survives to
+            // the ground, so they belong on the chart itself, not buried in the score breakdown.
+            var selfStats = ChartStatReader.SelfAreaStats(charts[i].Entity.GetComponent<Mods>()?.ItemMods);
+            if (!selfStats.IsZero)
+            {
+                pos.Y += size.Y;
+                Graphics.DrawTextWithBackground(selfStats.ToString(), pos, Color.Aqua, Color.Black);
+            }
+
             var chartMods = charts[i].Entity.GetComponent<Mods>()?.ImplicitMods ?? [];
             
             foreach (var chartMod in chartMods) {
@@ -375,6 +385,12 @@ public partial class DeepwaterEngagementSuiteGGRN
                     if (chart.Item.TryGetComponent(out DeepwaterChart c))
                     {
                         var rotation = ((Direction)c.Room.Path);
+                        // The chart's own Item Quantity / Rarity / Pack Size / Sulphur scale
+                        // everything dropping in the area it opens; its voyage-scope implicit
+                        // scales the whole board. Both come straight from the game's mod data.
+                        var chartMods = chart.Item.GetComponent<Mods>()?.ItemMods;
+                        var selfStats = ChartStatReader.SelfAreaStats(chartMods);
+                        var voyageStats = ChartStatReader.VoyageWideStats(chartMods);
                         var mp = new MapPiece(i,
                             int.PopCount((int)rotation) switch
                             {
@@ -393,7 +409,9 @@ public partial class DeepwaterEngagementSuiteGGRN
                                 return new Modifier(im.RawName, configuredWeight ?? 0, chartMod?.IsGlobal.Value ?? false,
                                     ModifierTagParser.Parse(chartMod?.Tags.Value, ModifierTag.None));
                             }) ?? []
-                            ]);
+                            ],
+                            selfStats,
+                            voyageStats);
                         pieces.Add(mp);
                     }
 
@@ -419,7 +437,12 @@ public partial class DeepwaterEngagementSuiteGGRN
                     }).ToList();
                 }
 
-                var puzzle = new VoyagePuzzle(pieces, tileBorders, []);
+                var puzzle = new VoyagePuzzle(pieces, tileBorders, [], new RewardStatWeights(
+                    Settings.VoyageSettings.QuantityWeight.Value,
+                    Settings.VoyageSettings.RarityWeight.Value,
+                    Settings.VoyageSettings.PackSizeWeight.Value,
+                    Settings.VoyageSettings.SulphurWeight.Value,
+                    Settings.VoyageSettings.GoldWeight.Value));
                 _uiScorer = new VoyageScorer(puzzle);
                 var timeLimitSetting = Settings.VoyageSettings.SolverTimeLimitSeconds.Value;
 

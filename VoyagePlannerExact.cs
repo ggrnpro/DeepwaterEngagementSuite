@@ -27,6 +27,15 @@ public class VoyagePlannerExact
     private const int GridSize = 3;
     private const int CellCount = GridSize * GridSize;
 
+    /// <summary>
+    /// How many times each pattern's assignment is re-solved with the multipliers read back from
+    /// the previous solve. Two passes already converge on real boards; a third is cheap insurance.
+    /// </summary>
+    private const int RefinementPasses = 3;
+
+    /// <summary>How many of the best boards get an exhaustive swap search on the true objective.</summary>
+    private const int PolishCount = 40;
+
     // Same direction convention as VoyagePlanner: Up = row+1, Down = row-1, Left = col-1, Right = col+1.
     private static readonly (Direction Dir, int Dr, int Dc)[] Dirs =
     [
@@ -310,49 +319,134 @@ public class VoyagePlannerExact
                     s[mi] = sum;
                 }
 
-                var feasible = BuildCostMatrix(
-                    scorer, pieces, rotations, locked, required, conn, connSensitive, s,
-                    cost, chosenRotation);
+                // A chart's own quantity scales what its neighbours put in its area, so the value of
+                // a placement depends on its neighbours and the assignment is no longer linear.
+                // Iterate: solve the linear part, read the resulting multipliers back, solve again.
+                // The first pass has no estimate and so maximises raw content.
+                var rawIncoming = new double[CellCount][];
+                for (var cell = 0; cell < CellCount; cell++)
+                    rawIncoming[cell] = new double[maskCount];
 
-                if (!feasible)
+                var voyageMult = new double[maskCount];
+                Array.Fill(voyageMult, 1.0);
+
+                MapPiecePlacement[,] bestGrid = null;
+                var bestScore = double.NegativeInfinity;
+                var infeasible = false;
+
+                for (var iteration = 0; iteration < RefinementPasses; iteration++)
+                {
+                    var feasible = BuildCostMatrix(
+                        scorer, pieces, rotations, locked, required, conn, connSensitive, s,
+                        rawIncoming, voyageMult, cost, chosenRotation);
+
+                    if (!feasible)
+                    {
+                        infeasible = true;
+                        break;
+                    }
+
+                    var total = Hungarian.Solve(cost, CellCount, pieceCount, assignment);
+                    if (double.IsPositiveInfinity(total))
+                    {
+                        infeasible = true;
+                        break;
+                    }
+
+                    var grid = new MapPiecePlacement[GridSize, GridSize];
+                    for (var cell = 0; cell < CellCount; cell++)
+                    {
+                        var pieceIdx = assignment[cell];
+                        var piece = pieces[pieceIdx];
+                        var rot = chosenRotation[cell, pieceIdx];
+                        grid[cell / GridSize, cell % GridSize] =
+                            new MapPiecePlacement(piece, rot, piece.GetConnections(rot));
+                    }
+
+                    // Score through the shared scorer rather than trusting the assignment total:
+                    // the linearised objective is only an approximation, the scorer is the truth.
+                    var score = scorer.Score(grid);
+                    if (score > bestScore)
+                    {
+                        bestScore = score;
+                        bestGrid = grid;
+                    }
+
+                    UpdateEstimates(scorer, pieces, assignment, conn, maskCount, rawIncoming, voyageMult);
+                }
+
+                if (infeasible || bestGrid == null)
                 {
                     skipped++;
                     continue;
                 }
 
                 evaluated++;
-                var total = Hungarian.Solve(cost, CellCount, pieceCount, assignment);
-                if (double.IsPositiveInfinity(total))
-                {
-                    skipped++;
-                    continue;
-                }
-
                 FeasiblePatterns++;
-                var grid = new MapPiecePlacement[GridSize, GridSize];
-                for (var cell = 0; cell < CellCount; cell++)
-                {
-                    var pieceIdx = assignment[cell];
-                    var piece = pieces[pieceIdx];
-                    var rot = chosenRotation[cell, pieceIdx];
-                    grid[cell / GridSize, cell % GridSize] =
-                        new MapPiecePlacement(piece, rot, piece.GetConnections(rot));
-                }
-
-                // Score through the shared scorer rather than trusting the assignment total: the two
-                // must agree, and this keeps a single source of truth for what a board is worth.
-                var score = scorer.Score(grid);
-                best.Add(new VoyageSolution(grid, score, requireConnected));
+                best.Add(new VoyageSolution(bestGrid, bestScore, requireConnected));
             }
         }
 
-        var top = best
+        // The linearisation can leave a board one swap short of its own optimum, so the strongest
+        // candidates get an exhaustive swap search scored by the real scorer.
+        var polished = best
+            .OrderByDescending(x => x.TotalScore)
+            .DistinctBy(GridSignature)
+            .Take(PolishCount)
+            .Select(x => Polish(scorer, pieces, x, requireConnected))
+            .ToList();
+
+        var top = polished
             .OrderByDescending(x => x.TotalScore)
             .DistinctBy(GridSignature)
             .Take(Math.Max(1, settings.TopN))
             .ToList();
 
         return new VoyageSolutionResult(top, evaluated, skipped);
+    }
+
+    /// <summary>
+    /// Recomputes, from a solved assignment, the two quantities the linearisation needs: the raw
+    /// value arriving on each tile before any self multiplier, and the voyage-wide multiplier of
+    /// the charts that ended up placed.
+    /// </summary>
+    private static void UpdateEstimates(
+        VoyageScorer scorer,
+        List<MapPiece> pieces,
+        int[] assignment,
+        int[] conn,
+        int maskCount,
+        double[][] rawIncoming,
+        double[] voyageMult)
+    {
+        for (var mi = 0; mi < maskCount; mi++)
+            voyageMult[mi] = scorer.VoyageMultiplierFor(assignment, mi);
+
+        for (var cell = 0; cell < CellCount; cell++)
+            Array.Clear(rawIncoming[cell]);
+
+        for (var cell = 0; cell < CellCount; cell++)
+        {
+            foreach (var neighbour in Neighbors[cell])
+            {
+                foreach (var e in scorer.LocalMods(assignment[neighbour]))
+                {
+                    rawIncoming[cell][e.MaskIdx] += e.Weight
+                                                    * scorer.ChartMultiplier(neighbour, e.MaskIdx, conn[neighbour])
+                                                    * scorer.TileMultiplier(cell, e.MaskIdx, conn[cell]);
+                }
+            }
+
+            for (var source = 0; source < CellCount; source++)
+            {
+                foreach (var e in scorer.GlobalMods(assignment[source]))
+                {
+                    rawIncoming[cell][e.MaskIdx] += e.Weight
+                                                    * scorer.ChartMultiplier(source, e.MaskIdx, conn[source])
+                                                    * scorer.TileMultiplier(cell, e.MaskIdx, conn[cell]);
+                }
+            }
+        }
     }
 
     private static bool BuildCostMatrix(
@@ -364,6 +458,8 @@ public class VoyagePlannerExact
         int[] conn,
         bool[] connSensitive,
         double[] s,
+        double[][] rawIncoming,
+        double[] voyageMult,
         double[,] cost,
         int[,] chosenRotation)
     {
@@ -401,6 +497,8 @@ public class VoyagePlannerExact
                 anyEligible = true;
                 chosenRotation[cell, pieceIdx] = rotation;
 
+                // What this chart delivers elsewhere, before the receiving tiles scale it. The
+                // receiving side is accounted for once, by the chart sitting there.
                 double value = 0;
                 foreach (var neighbor in Neighbors[cell])
                 {
@@ -408,7 +506,8 @@ public class VoyagePlannerExact
                     {
                         value += e.Weight
                                  * scorer.ChartMultiplier(cell, e.MaskIdx, conn[cell])
-                                 * scorer.TileMultiplier(neighbor, e.MaskIdx, conn[neighbor]);
+                                 * scorer.TileMultiplier(neighbor, e.MaskIdx, conn[neighbor])
+                                 * voyageMult[e.MaskIdx];
                     }
                 }
 
@@ -416,7 +515,17 @@ public class VoyagePlannerExact
                 {
                     value += e.Weight
                              * scorer.ChartMultiplier(cell, e.MaskIdx, conn[cell])
-                             * s[e.MaskIdx];
+                             * s[e.MaskIdx]
+                             * voyageMult[e.MaskIdx];
+                }
+
+                // What this chart's own quantity, rarity and pack size add to whatever arrives on
+                // the tile it takes. Splitting it out this way counts each delivery exactly once.
+                var incoming = rawIncoming[cell];
+                for (var mi = 0; mi < incoming.Length; mi++)
+                {
+                    if (incoming[mi] != 0)
+                        value += incoming[mi] * (scorer.SelfMultiplier(pieceIdx, mi) - 1) * voyageMult[mi];
                 }
 
                 cost[cell, pieceIdx] = -value; // Hungarian minimises, we want the richest board
@@ -427,6 +536,99 @@ public class VoyagePlannerExact
         }
 
         return true;
+    }
+
+    /// <summary>
+    /// Improves a board by swapping placed charts with each other and with unused ones, keeping the
+    /// board's connection shape intact and judging every candidate with the real scorer. Runs until
+    /// nothing improves, which for nine tiles is a handful of passes.
+    /// </summary>
+    private static VoyageSolution Polish(
+        VoyageScorer scorer,
+        List<MapPiece> pieces,
+        VoyageSolution solution,
+        bool requireConnected)
+    {
+        var grid = (MapPiecePlacement[,])solution.Grid.Clone();
+        var score = solution.TotalScore;
+
+        var improved = true;
+        while (improved)
+        {
+            improved = false;
+
+            for (var a = 0; a < CellCount && !improved; a++)
+            for (var b = a + 1; b < CellCount && !improved; b++)
+            {
+                var pa = grid[a / GridSize, a % GridSize];
+                var pb = grid[b / GridSize, b % GridSize];
+                var rotA = FindRotation(pa.Piece, pb.Connections);
+                var rotB = FindRotation(pb.Piece, pa.Connections);
+                if (rotA < 0 || rotB < 0)
+                    continue;
+
+                grid[a / GridSize, a % GridSize] = new MapPiecePlacement(pb.Piece, rotB, pa.Connections);
+                grid[b / GridSize, b % GridSize] = new MapPiecePlacement(pa.Piece, rotA, pb.Connections);
+                var candidate = scorer.Score(grid);
+                if (candidate > score + 1e-9)
+                {
+                    score = candidate;
+                    improved = true;
+                }
+                else
+                {
+                    grid[a / GridSize, a % GridSize] = pa;
+                    grid[b / GridSize, b % GridSize] = pb;
+                }
+            }
+
+            if (improved)
+                continue;
+
+            var placed = new HashSet<int>();
+            for (var cell = 0; cell < CellCount; cell++)
+                placed.Add(grid[cell / GridSize, cell % GridSize].Piece.Id);
+
+            for (var cell = 0; cell < CellCount && !improved; cell++)
+            {
+                var current = grid[cell / GridSize, cell % GridSize];
+                foreach (var piece in pieces)
+                {
+                    if (placed.Contains(piece.Id))
+                        continue;
+
+                    var rot = FindRotation(piece, current.Connections);
+                    if (rot < 0)
+                        continue;
+
+                    grid[cell / GridSize, cell % GridSize] = new MapPiecePlacement(piece, rot, current.Connections);
+                    var candidate = scorer.Score(grid);
+                    if (candidate > score + 1e-9)
+                    {
+                        score = candidate;
+                        improved = true;
+                        break;
+                    }
+
+                    grid[cell / GridSize, cell % GridSize] = current;
+                }
+            }
+        }
+
+        return score > solution.TotalScore
+            ? new VoyageSolution(grid, score, requireConnected)
+            : solution;
+    }
+
+    private static int FindRotation(MapPiece piece, Direction connections)
+    {
+        for (var rot = 0; rot < piece.DistinctRotations; rot++)
+        {
+            if (piece.GetConnections(rot) == connections)
+                return rot;
+        }
+
+        return -1;
     }
 
     private static string GridSignature(VoyageSolution solution)

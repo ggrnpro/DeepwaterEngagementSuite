@@ -12,11 +12,22 @@ public enum PieceType
     Single,
 }
 
+/// <param name="SelfStats">
+/// Reward stats that apply to the area this chart opens — its own Item Quantity, Rarity, Pack Size
+/// and Dead Man's Sulphur. They scale everything that drops there, including content neighbouring
+/// charts put in the area.
+/// </param>
+/// <param name="VoyageStats">
+/// Reward stats this chart projects over every area of the voyage, from its voyage-scope implicit.
+/// Unlike <paramref name="SelfStats"/> these do not depend on where the chart is placed.
+/// </param>
 public record MapPiece(
     int Id,
     PieceType Type,
     Direction BaseConnections,
-    List<Modifier> Modifiers)
+    List<Modifier> Modifiers,
+    ChartRewardStats SelfStats = default,
+    ChartRewardStats VoyageStats = default)
 {
     public readonly double GlobalModifier = Modifiers.Where(x => x.IsGlobal).Sum(x => x.Weight);
     public readonly double LocalModifier = Modifiers.Where(x => !x.IsGlobal).Sum(x => x.Weight);
