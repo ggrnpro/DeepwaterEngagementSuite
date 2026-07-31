@@ -43,6 +43,9 @@ public partial class DeepwaterEngagementSuiteGGRN : BaseSettingsPlugin<Deepwater
     private const float GridToWorldMultiplier = 250 / 23f;
 
     private readonly Dictionary<uint, EntityCacheItem> _cachedEntities = new Dictionary<uint, EntityCacheItem>();
+
+    /// <summary>Entities the game confirmed as present and unfinished on the current tick.</summary>
+    private readonly HashSet<uint> _liveEntityIds = new();
     private readonly ConcurrentDictionary<string, ExpeditionEntityType> _entityTypeCache = new();
     private bool _largeMapOpen;
     private Vector2 _playerGridPos;
@@ -296,6 +299,12 @@ public partial class DeepwaterEngagementSuiteGGRN : BaseSettingsPlugin<Deepwater
 
         _bubbleRadius = Settings.BubbleSettings.BubbleRadiusOverride.Value is > 0 and var o ? o : Bubbles.Min(x => x.Radius);
 
+        // The cache only ever prunes entities the game still lists as valid, so anything completed
+        // after it left that list lingers forever. Icons survive that; a line drawn across the map
+        // to a chest that is not there does not. The guide is therefore restricted to what this
+        // tick has actually seen.
+        _liveEntityIds.Clear();
+
         foreach (var entity in new[] { EntityType.Chest, EntityType.Terrain, EntityType.IngameIcon, }
                      .SelectMany(x => GameController.EntityListWrapper.ValidEntitiesByType[x]))
         {
@@ -307,6 +316,8 @@ public partial class DeepwaterEngagementSuiteGGRN : BaseSettingsPlugin<Deepwater
                 _cachedEntities.Remove(entity.Id);
                 continue;
             }
+
+            _liveEntityIds.Add(entity.Id);
 
             var newValue = BuildCacheItem(entity);
             _cachedEntities[entity.Id] = _cachedEntities.TryGetValue(entity.Id, out var oldValue)

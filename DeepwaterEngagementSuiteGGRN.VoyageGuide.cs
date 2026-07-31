@@ -86,6 +86,11 @@ public partial class DeepwaterEngagementSuiteGGRN
             if (entity.IsOpened)
                 continue;
 
+            // Only send the player somewhere the game confirmed is there this tick. A cached entry
+            // that has dropped out of the entity list may well have been looted since.
+            if (!_liveEntityIds.Contains(id))
+                continue;
+
             var type = GetChestType(entity.Path);
             var value = ObjectiveValue(type);
             if (value <= 0)
