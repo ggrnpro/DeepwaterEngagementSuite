@@ -519,6 +519,12 @@ public class VoyageSettings
 
     // Deliberately not F9: something outside the plugin grabs it and drops you to character select.
     // The property is named differently from the old one so the stored F9 binding is not carried over.
+    [Menu("Export every league modifier",
+        "Writes the whole modifier table the game ships - magnitudes and spawn weights included - "
+        + "so the planner is not limited to modifiers that happen to have been seen.")]
+    [JsonIgnore]
+    public ButtonNode ExportModCatalogue { get; set; } = new ButtonNode();
+
     [Menu("Snapshot hotkey", "Writes a full JSON snapshot of the current voyage window and the latest solver result.")]
     public HotkeyNodeV2 SnapshotHotkey { get; set; } = new HotkeyNodeV2(Keys.F4);
     public RangeNode<float> BorderHighlightThreshold { get; set; } = new RangeNode<float>(1.01f, 0, 10);
