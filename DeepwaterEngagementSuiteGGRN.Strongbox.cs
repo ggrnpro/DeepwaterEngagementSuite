@@ -112,6 +112,13 @@ public partial class DeepwaterEngagementSuiteGGRN
                 if (name == null || !records.TryGetValue(name, out var record) || record.StatNames == null)
                     continue;
 
+                // The stat names a strongbox modifier grants were guessed at, and the readings show
+                // the guess is wrong: rarity comes back zero on every box. Record each modifier the
+                // first time it is seen so the mapping can be built from what the game actually
+                // publishes, the same way the chart stats were.
+                if (Settings.VoyageSettings.EnableDebugDump)
+                    Telemetry?.NoteModRecord("strongbox:" + name, () => VoyageTelemetry.Describe(record, depth: 2));
+
                 var statNames = record.StatNames.ToArray();
                 var statRanges = record.StatRange.ToArray();
                 for (var i = 0; i < statNames.Length; i++)
@@ -151,6 +158,9 @@ public partial class DeepwaterEngagementSuiteGGRN
             return null;
         }
     }
+
+    private static string TrimStrongboxPrefix(string mod) =>
+        mod?.StartsWith("Chest", StringComparison.Ordinal) == true ? mod["Chest".Length..] : mod;
 
     private StrongboxReading? NearestStrongbox()
     {
@@ -213,9 +223,18 @@ public partial class DeepwaterEngagementSuiteGGRN
             return;
         }
 
-        ImGui.Text($"{box.Kind}  ({box.Rarity})   {box.Distance:F0} away");
-        ImGui.Text($"Item Quantity +{box.Quantity:F0}%   Item Rarity +{box.ItemRarity:F0}%"
-                   + (box.PackSize > 0 ? $"   Pack Size +{box.PackSize:F0}%" : ""));
+        ImGui.Text($"{box.Kind}  ({box.Rarity})   {box.Distance:F0} away   {box.Mods.Count} modifiers");
+
+        // The totals below are only as good as the stat mapping, which is still being worked out,
+        // so the modifiers themselves are shown rather than hidden behind a total that may be wrong.
+        if (box.Quantity > 0 || box.ItemRarity > 0 || box.PackSize > 0)
+        {
+            ImGui.Text($"Item Quantity +{box.Quantity:F0}%   Item Rarity +{box.ItemRarity:F0}%"
+                       + (box.PackSize > 0 ? $"   Pack Size +{box.PackSize:F0}%" : ""));
+        }
+
+        foreach (var mod in box.Mods)
+            ImGui.TextUnformatted("  " + TrimStrongboxPrefix(mod));
 
         var comparable = StrongboxHistory
             .Where(x => x.Rarity == box.Rarity.ToString())
@@ -237,14 +256,6 @@ public partial class DeepwaterEngagementSuiteGGRN
         ImGui.Separator();
         var (verdict, colour) = StrongboxVerdict(box, percentile);
         ImGui.TextColored(colour.ToImguiVec4(), verdict);
-
-        if (box.Mods.Count > 0 && ImGui.TreeNode("Modifiers"))
-        {
-            foreach (var mod in box.Mods)
-                ImGui.TextUnformatted(mod);
-
-            ImGui.TreePop();
-        }
 
         ImGui.End();
     }
