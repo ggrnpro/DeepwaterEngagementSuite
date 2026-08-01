@@ -72,9 +72,8 @@ public partial class DeepwaterEngagementSuiteGGRN
     private readonly record struct StrongboxReading(
         string Kind,
         MonsterRarity Rarity,
-        double Quantity,
-        double ItemRarity,
-        double PackSize,
+        double Score,
+        int UnknownMods,
         List<string> Mods,
         float Distance);
 
@@ -103,54 +102,30 @@ public partial class DeepwaterEngagementSuiteGGRN
             if (magic == null)
                 return null;
 
-            double quantity = 0, rarity = 0, pack = 0;
-            var mods = magic.Mods ?? [];
-            var records = GameController.Files.Mods.records;
-
-            foreach (var name in mods)
+            // The modifier ids are what carry the meaning. Reading stat names off them was tried
+            // and produced zero on every box, because a Diviner box is worth opening for the cards
+            // it adds and not for a quantity roll. Duplicates appear in the list as a box is
+            // rerolled, so only distinct ids count.
+            var mods = (magic.Mods ?? []).Where(x => x != null).Distinct().ToList();
+            double score = 0;
+            var unknown = 0;
+            foreach (var mod in mods)
             {
-                if (name == null || !records.TryGetValue(name, out var record) || record.StatNames == null)
-                    continue;
-
-                // The stat names a strongbox modifier grants were guessed at, and the readings show
-                // the guess is wrong: rarity comes back zero on every box. Record each modifier the
-                // first time it is seen so the mapping can be built from what the game actually
-                // publishes, the same way the chart stats were.
-                if (Settings.VoyageSettings.EnableDebugDump)
-                    Telemetry?.NoteModRecord("strongbox:" + name, () => VoyageTelemetry.Describe(record, depth: 2));
-
-                var statNames = record.StatNames.ToArray();
-                var statRanges = record.StatRange.ToArray();
-                for (var i = 0; i < statNames.Length; i++)
+                score += StrongboxModValues.ValueOf(mod, out var known);
+                if (!known)
                 {
-                    var stat = statNames[i]?.MatchingStat.ToString();
-                    var value = i < statRanges.Length ? statRanges[i].Min : 0;
-                    switch (stat)
-                    {
-                        case "MapItemDropQuantityPct":
-                        case "ChestItemQuantityPct":
-                        case "ChestHiddenItemQuantityPct":
-                            quantity += value;
-                            break;
-                        case "MapItemDropRarityPct":
-                        case "ChestItemRarityPct":
-                        case "ChestHiddenItemRarityPct":
-                            rarity += value;
-                            break;
-                        case "MapPackSizePct":
-                            pack += value;
-                            break;
-                    }
+                    unknown++;
+                    if (Settings.VoyageSettings.EnableDebugDump)
+                        Telemetry?.NoteUnknown("strongboxMod", mod);
                 }
             }
 
             return new StrongboxReading(
                 GetEntityDisplayName(GetChestType(entity.Path)),
                 magic.Rarity,
-                quantity,
-                rarity,
-                pack,
-                mods.ToList(),
+                score,
+                unknown,
+                mods,
                 Vector2.Distance(_playerGridPos, entity.GridPosNum));
         }
         catch
@@ -190,8 +165,8 @@ public partial class DeepwaterEngagementSuiteGGRN
             Timestamp = DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture),
             Kind = reading.Kind,
             Rarity = reading.Rarity.ToString(),
-            Quantity = reading.Quantity,
-            Rarity_ = reading.ItemRarity,
+            Quantity = reading.Score,
+            Rarity_ = 0,
         });
 
         if (StrongboxHistory.Count > 1000)
@@ -215,7 +190,7 @@ public partial class DeepwaterEngagementSuiteGGRN
         if (NearestStrongbox() is not { } box)
             return;
 
-        RecordStrongbox(box, (long)box.Quantity * 1000 + (long)box.ItemRarity + box.Kind.GetHashCode());
+        RecordStrongbox(box, (long)box.Score * 1000 + box.Mods.Count * 7 + box.Kind.GetHashCode());
 
         if (!ImGui.Begin("Strongbox", ImGuiWindowFlags.AlwaysAutoResize))
         {
@@ -223,33 +198,34 @@ public partial class DeepwaterEngagementSuiteGGRN
             return;
         }
 
-        ImGui.Text($"{box.Kind}  ({box.Rarity})   {box.Distance:F0} away   {box.Mods.Count} modifiers");
-
-        // The totals below are only as good as the stat mapping, which is still being worked out,
-        // so the modifiers themselves are shown rather than hidden behind a total that may be wrong.
-        if (box.Quantity > 0 || box.ItemRarity > 0 || box.PackSize > 0)
-        {
-            ImGui.Text($"Item Quantity +{box.Quantity:F0}%   Item Rarity +{box.ItemRarity:F0}%"
-                       + (box.PackSize > 0 ? $"   Pack Size +{box.PackSize:F0}%" : ""));
-        }
+        ImGui.Text($"{box.Kind}  ({box.Rarity})   {box.Distance:F0} away   score {box.Score:F0}");
 
         foreach (var mod in box.Mods)
-            ImGui.TextUnformatted("  " + TrimStrongboxPrefix(mod));
+        {
+            var value = StrongboxModValues.ValueOf(mod, out _);
+            if (value > 0)
+                ImGui.TextColored(Color.Lime.ToImguiVec4(), $"  +{value:F0}  {StrongboxModValues.Describe(mod)}");
+            else
+                ImGui.TextDisabled($"       {StrongboxModValues.Describe(mod)}");
+        }
+
+        if (box.UnknownMods > 0)
+            ImGui.TextDisabled($"{box.UnknownMods} modifier(s) not in the value table yet - recorded.");
 
         var comparable = StrongboxHistory
-            .Where(x => x.Rarity == box.Rarity.ToString())
+            .Where(x => x.Kind == box.Kind)
             .Select(x => x.Quantity)
             .ToList();
 
         double? percentile = null;
         if (comparable.Count >= 5)
         {
-            percentile = 100.0 * comparable.Count(x => x < box.Quantity) / comparable.Count;
-            ImGui.Text($"Better than {percentile:F0}% of the {comparable.Count} {box.Rarity} boxes you have seen.");
+            percentile = 100.0 * comparable.Count(x => x < box.Score) / comparable.Count;
+            ImGui.Text($"Better than {percentile:F0}% of the {comparable.Count} boxes of this type you have seen.");
         }
         else
         {
-            ImGui.TextDisabled($"Only {comparable.Count} {box.Rarity} boxes recorded - open a few more before " +
+            ImGui.TextDisabled($"Only {comparable.Count} boxes of this type recorded - open a few more before " +
                                "this can be compared against anything.");
         }
 
@@ -284,8 +260,8 @@ public partial class DeepwaterEngagementSuiteGGRN
                         Color.Gray);
 
                 return percentile < threshold
-                    ? ($"CHAOS - this roll is in the bottom {threshold:F0}% of the Rare boxes you have seen.", Color.Lime)
-                    : ($"KEEP - this roll beats {percentile:F0}% of the Rare boxes you have seen. Open it.", Color.Orange);
+                    ? ($"CHAOS - this roll is in the bottom {threshold:F0}% of the boxes of this type you have seen.", Color.Lime)
+                    : ($"KEEP - this roll beats {percentile:F0}% of them. Open it.", Color.Orange);
 
             default:
                 return ("Unique box - currency will not improve it. Open it.", Color.Orange);
