@@ -422,6 +422,18 @@ public class VoyageSettings
         "worth the walk.")]
     public ToggleNode PrioritiseLanterns { get; set; } = new ToggleNode(true);
 
+    [Menu("Remember objects worth at least",
+        "Objects this valuable are remembered by position once they unload, so running past a " +
+        "currency chest or a Diviner's Strongbox does not lose it. They are forgotten as soon as " +
+        "they are seen opened, or when the area ends. Cheap things are not remembered, since a " +
+        "stale marker over a barrel is worse than no marker.")]
+    public RangeNode<float> RememberAboveValue { get; set; } = new RangeNode<float>(70f, 0f, 250f);
+
+    [Menu("Draw guide lines in the world",
+        "Off by default: with the map open there were two lines for the same target and the map is " +
+        "where they are read. Turn on to also draw over the world.")]
+    public ToggleNode DrawGuideInWorld { get; set; } = new ToggleNode(false);
+
     [Menu("Show guide list", "A small window listing the next targets in order.")]
     public ToggleNode ShowObjectiveList { get; set; } = new ToggleNode(true);
 

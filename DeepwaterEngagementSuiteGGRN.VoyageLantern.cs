@@ -52,8 +52,6 @@ public partial class DeepwaterEngagementSuiteGGRN
         var order = PlanPickupOrder(_playerGridPos, lanterns);
         var color = settings.LanternRouteColor.Value;
         var width = settings.LanternRouteWidth.Value;
-        var drawMap = _largeMapOpen && Settings.TrailSettings.DrawOnLargeMap;
-
         var previous = _playerGridPos;
         for (var step = 0; step < order.Count; step++)
         {
@@ -64,26 +62,10 @@ public partial class DeepwaterEngagementSuiteGGRN
                 ? color
                 : new Color(color.R, color.G, color.B, (byte)Math.Max(60, color.A - step * 45));
 
-            if (drawMap)
-            {
-                Graphics.DrawLine(
-                    Graphics.GridToMap(previous, _playerGridPos),
-                    Graphics.GridToMap(target, _playerGridPos),
-                    width, legColor);
-                Graphics.DrawTextWithBackground($"{step + 1}",
-                    Graphics.GridToMap(target, _playerGridPos), legColor, FontAlign.Center, Color.Black);
-            }
-            else
-            {
-                var from = GetWorldScreenPosition(previous);
-                var to = GetWorldScreenPosition(target);
-                Graphics.DrawLine(from, to, width, legColor);
-
-                var label = step == 0
-                    ? $"1  Golden Lantern {Vector2.Distance(_playerGridPos, target):F0}"
-                    : $"{step + 1}";
-                Graphics.DrawTextWithBackground(label, to, legColor, FontAlign.Center, Color.Black);
-            }
+            var label = step == 0
+                ? $"1  Golden Lantern {Vector2.Distance(_playerGridPos, target):F0}"
+                : $"{step + 1}";
+            DrawGuideLine(previous, target, legColor, width, label);
 
             previous = target;
         }

@@ -39,7 +39,20 @@ public partial class DeepwaterEngagementSuiteGGRN
 
     private uint? _currentTargetId;
 
-    private void ResetGuide() => _currentTargetId = null;
+    /// <summary>
+    /// Valuable objects seen earlier that are no longer loaded.
+    ///
+    /// Running past a currency chest unloads it, and a guide built only from loaded entities forgets
+    /// it ever existed. For a plain barrel that is fine; for the things a run is actually for it is
+    /// not, so those are remembered by position until they are seen opened or the area ends.
+    /// </summary>
+    private readonly Dictionary<uint, GuideTarget> _remembered = new();
+
+    private void ResetGuide()
+    {
+        _currentTargetId = null;
+        _remembered.Clear();
+    }
 
     /// <summary>
     /// Value of an object type on a scale where a plain currency chest is 100. Zero means the guide
@@ -142,10 +155,15 @@ public partial class DeepwaterEngagementSuiteGGRN
 
         foreach (var entity in CandidateEntities())
         {
+            var type = GetChestType(entity.Path);
+
             bool skip;
             try
             {
-                skip = entity is not { IsValid: true } || entity.IsOpened;
+                // The plugin's own completion check, not just IsOpened: a Cursed Ducat reports
+                // being taken through its state machine, which is why the guide kept pointing at
+                // one already looted.
+                skip = entity is not { IsValid: true } || IsEntityCompleted(entity, type);
             }
             catch
             {
@@ -153,9 +171,10 @@ public partial class DeepwaterEngagementSuiteGGRN
             }
 
             if (skip)
+            {
+                _remembered.Remove(entity.Id);
                 continue;
-
-            var type = GetChestType(entity.Path);
+            }
             var value = ObjectiveValue(type);
             if (value <= 0)
                 continue;
@@ -173,7 +192,24 @@ public partial class DeepwaterEngagementSuiteGGRN
             if (maxDistance > 0 && Vector2.Distance(_playerGridPos, pos) > maxDistance)
                 continue;
 
-            targets.Add(new GuideTarget(entity.Id, type, pos, value));
+            var target = new GuideTarget(entity.Id, type, pos, value);
+            targets.Add(target);
+
+            if (value >= Settings.VoyageSettings.RememberAboveValue.Value)
+                _remembered[entity.Id] = target;
+        }
+
+        // Anything valuable seen before but not loaded now is still worth walking back to.
+        var live = new HashSet<uint>(targets.Select(x => x.Id));
+        foreach (var (id, remembered) in _remembered)
+        {
+            if (live.Contains(id))
+                continue;
+
+            if (maxDistance > 0 && Vector2.Distance(_playerGridPos, remembered.GridPos) > maxDistance)
+                continue;
+
+            targets.Add(remembered);
         }
 
         return targets;
@@ -233,6 +269,35 @@ public partial class DeepwaterEngagementSuiteGGRN
         return leader;
     }
 
+    /// <summary>
+    /// Draws a line to a target on the large map, and in the world only when asked for.
+    ///
+    /// Both at once meant two lines to the same thing, and the map is where they get read while
+    /// moving, so the world line is off unless someone wants it back.
+    /// </summary>
+    private void DrawGuideLine(Vector2 fromGrid, Vector2 toGrid, Color color, int width, string label)
+    {
+        if (_largeMapOpen)
+        {
+            var from = Graphics.GridToMap(fromGrid, _playerGridPos);
+            var to = Graphics.GridToMap(toGrid, _playerGridPos);
+            Graphics.DrawLine(from, to, width, color);
+            if (label != null)
+                Graphics.DrawTextWithBackground(label, to, color, FontAlign.Center, Color.Black);
+
+            return;
+        }
+
+        if (!Settings.VoyageSettings.DrawGuideInWorld.Value)
+            return;
+
+        var worldFrom = GetWorldScreenPosition(fromGrid);
+        var worldTo = GetWorldScreenPosition(toGrid);
+        Graphics.DrawLine(worldFrom, worldTo, width, color);
+        if (label != null)
+            Graphics.DrawTextWithBackground(label, worldTo, color, FontAlign.Center, Color.Black);
+    }
+
     private void DrawObjectiveGuide()
     {
         var settings = Settings.VoyageSettings;
@@ -261,28 +326,9 @@ public partial class DeepwaterEngagementSuiteGGRN
         }
 
         var color = next.IsLantern ? settings.LanternRouteColor.Value : settings.GuideColor.Value;
-        var from = GetWorldScreenPosition(_playerGridPos);
-        var to = GetWorldScreenPosition(next.GridPos);
-
-        Graphics.DrawLine(from, to, settings.LanternRouteWidth.Value + 1, color);
-
         var distance = Vector2.Distance(_playerGridPos, next.GridPos);
-        Graphics.DrawTextWithBackground(
-            $"{GetEntityDisplayName(next.Type)}  {distance:F0}", to, color, FontAlign.Center, Color.Black);
-
-        // Off-screen targets get a label pinned near the player, since the end of the line is
-        // somewhere past the edge of the window and the line alone gives no idea how far.
-        if (distance > 120)
-        {
-            var direction = to - from;
-            if (direction.LengthSquared() > 1)
-            {
-                direction /= direction.Length();
-                Graphics.DrawTextWithBackground(
-                    $"{GetEntityDisplayName(next.Type)} {distance:F0} away",
-                    from + direction * 90f, color, FontAlign.Center, Color.Black);
-            }
-        }
+        var label = $"{GetEntityDisplayName(next.Type)}  {distance:F0}";
+        DrawGuideLine(_playerGridPos, next.GridPos, color, settings.LanternRouteWidth.Value + 1, label);
 
         if (!settings.ShowObjectiveList.Value)
             return;
