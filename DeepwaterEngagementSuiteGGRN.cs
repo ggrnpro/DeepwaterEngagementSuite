@@ -104,6 +104,7 @@ public partial class DeepwaterEngagementSuiteGGRN : BaseSettingsPlugin<Deepwater
         RegisterHotkey(Settings.PlannerSettings.StartSearchHotkey);
         RegisterHotkey(Settings.PlannerSettings.StopSearchHotkey);
         RegisterHotkey(Settings.PlannerSettings.ClearSearchHotkey);
+        InitAutoPickup();
         return base.Initialise();
     }
 
@@ -165,6 +166,7 @@ public partial class DeepwaterEngagementSuiteGGRN : BaseSettingsPlugin<Deepwater
         _editedIndex = null;
         _editedPathEval = null;
         _cachedEntities.Clear();
+        ResetAutoPickup();
         ResetGuide();
         ResetTrailTracking();
         _zoneCleared = false;
@@ -494,6 +496,10 @@ public partial class DeepwaterEngagementSuiteGGRN : BaseSettingsPlugin<Deepwater
 
     public override void Render()
     {
+        // Loot does not care whether this is a voyage, so the picker runs before anything that bails
+        // out when the Deepwater handler is missing.
+        RunAutoPickup();
+
         DrawVoyageHighlights();
         TrackVoyageRun();
         DrawLanternRoute();

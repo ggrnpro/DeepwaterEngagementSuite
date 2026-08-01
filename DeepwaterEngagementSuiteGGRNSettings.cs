@@ -52,6 +52,9 @@ public class DeepwaterEngagementSuiteSettings : ISettings
 
     public ToggleNode ShowLootWindow { get; set; } = new ToggleNode(true);
 
+    [Menu("Automatic loot pickup")]
+    public AutoPickupSettings AutoPickupSettings { get; set; } = new AutoPickupSettings();
+
     public CurrencyReminderSettings CurrencyReminderSettings { get; set; } = new CurrencyReminderSettings();
     public BubbleSettings BubbleSettings { get; set; } = new BubbleSettings();
     public TrailSettings TrailSettings { get; set; } = new TrailSettings();
