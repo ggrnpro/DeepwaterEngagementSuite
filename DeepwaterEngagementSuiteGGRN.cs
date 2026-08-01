@@ -498,6 +498,14 @@ public partial class DeepwaterEngagementSuiteGGRN : BaseSettingsPlugin<Deepwater
         DrawLanternRoute();
         DrawObjectiveGuide();
         DrawStrongboxAdvice();
+
+        // The board snapshot only fires with the voyage window open, so the same key writes an
+        // area snapshot when it is not. Pressing it in game used to do nothing at all.
+        if (GameController.IngameState.IngameUi.VoyageWindow is not { IsValid: true, IsVisible: true }
+            && Settings.VoyageSettings.SnapshotHotkey.PressedOnce())
+        {
+            DumpAreaSnapshot();
+        }
         var largePanelsOpen = GameController.IngameState.IngameUi.FullscreenPanels.Any(x => x.IsVisible) ||
                           GameController.IngameState.IngameUi.LargePanels.Any(x => x.IsVisible);
 
