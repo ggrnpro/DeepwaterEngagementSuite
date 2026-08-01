@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using ExileCore.PoEMemory.Components;
 using ExileCore.PoEMemory.MemoryObjects;
 using ExileCore.Shared.Enums;
 using ExileCore.Shared.Helpers;
@@ -155,7 +156,13 @@ public partial class DeepwaterEngagementSuiteGGRN
 
         foreach (var entity in CandidateEntities())
         {
-            var type = GetChestType(entity.Path);
+            // An entity can report a null path for a frame while it spawns, and classifying that
+            // throws all the way out of Render, which takes every overlay down with it.
+            var path = entity.Path;
+            if (string.IsNullOrEmpty(path))
+                continue;
+
+            var type = GetChestType(path);
 
             bool skip;
             try
@@ -163,7 +170,7 @@ public partial class DeepwaterEngagementSuiteGGRN
                 // The plugin's own completion check, not just IsOpened: a Cursed Ducat reports
                 // being taken through its state machine, which is why the guide kept pointing at
                 // one already looted.
-                skip = entity is not { IsValid: true } || IsEntityCompleted(entity, type);
+                skip = entity is not { IsValid: true } || IsObjectiveFinished(entity, type);
             }
             catch
             {
@@ -213,6 +220,40 @@ public partial class DeepwaterEngagementSuiteGGRN
         }
 
         return targets;
+    }
+
+    /// <summary>
+    /// Whether an objective is done with.
+    ///
+    /// The plugin's own check only consults a state machine for Cursed Ducats, so altars and the
+    /// Goddess object stayed lit after being used. Any object reporting an activated or opened
+    /// state is finished, whatever its type.
+    /// </summary>
+    private static bool IsObjectiveFinished(Entity entity, IconPickerIndex type)
+    {
+        if (IsEntityCompleted(entity, type))
+            return true;
+
+        try
+        {
+            if (entity.TryGetComponent(out StateMachine machine))
+            {
+                foreach (var state in machine.States)
+                {
+                    if (state.Value != 1)
+                        continue;
+
+                    if (state.Name is "activated" or "opened" or "used" or "collected" or "finished")
+                        return true;
+                }
+            }
+        }
+        catch
+        {
+            // state machines are not readable on every object
+        }
+
+        return false;
     }
 
     /// <summary>Lanterns first in shortest-route order, then everything else by value per step.</summary>
@@ -338,6 +379,8 @@ public partial class DeepwaterEngagementSuiteGGRN
             ImGui.End();
             return;
         }
+
+        ImGui.SetWindowFontScale(Settings.VoyageSettings.OverlayFontScale.Value);
 
         var lanternsLeft = ranked.Count(x => x.IsLantern);
         if (lanternsLeft > 0)

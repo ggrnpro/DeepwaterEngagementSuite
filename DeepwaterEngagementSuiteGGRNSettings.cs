@@ -434,6 +434,9 @@ public class VoyageSettings
         "where they are read. Turn on to also draw over the world.")]
     public ToggleNode DrawGuideInWorld { get; set; } = new ToggleNode(false);
 
+    [Menu("Overlay font scale", "Text size in the guide and strongbox windows. The default is small at high resolution.")]
+    public RangeNode<float> OverlayFontScale { get; set; } = new RangeNode<float>(1.4f, 0.8f, 3f);
+
     [Menu("Show guide list", "A small window listing the next targets in order.")]
     public ToggleNode ShowObjectiveList { get; set; } = new ToggleNode(true);
 

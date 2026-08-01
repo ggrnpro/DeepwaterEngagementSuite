@@ -95,7 +95,7 @@ public partial class DeepwaterEngagementSuiteGGRN
             if (entity is not { IsValid: true } || entity.IsOpened)
                 return null;
 
-            if (!entity.Path.Contains("StrongBoxes/", StringComparison.OrdinalIgnoreCase))
+            if (entity.Path is not { } path || !path.Contains("StrongBoxes/", StringComparison.OrdinalIgnoreCase))
                 return null;
 
             var magic = entity.GetComponent<ObjectMagicProperties>();
@@ -197,6 +197,8 @@ public partial class DeepwaterEngagementSuiteGGRN
             ImGui.End();
             return;
         }
+
+        ImGui.SetWindowFontScale(Settings.VoyageSettings.OverlayFontScale.Value);
 
         ImGui.Text($"{box.Kind}  ({box.Rarity})   {box.Distance:F0} away   score {box.Score:F0}");
 
