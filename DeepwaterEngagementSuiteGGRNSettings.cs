@@ -381,6 +381,9 @@ public class VoyageSettings
     // A chart's own reward stats scale everything dropping in the area it opens. Item Quantity does
     // that directly, so it counts at face value; the rest are worth less per point for a
     // currency-focused run, which is what these weights express.
+    [Menu("Reward focus", "Scales chart modifier weights by what they reward, so the board can be aimed at what you actually farm.")]
+    public ModifierTagWeights TagWeights { get; set; } = new ModifierTagWeights();
+
     [Menu("Item Quantity weight", "How much a chart's own Item Quantity counts. 1 = at face value.")]
     public RangeNode<float> QuantityWeight { get; set; } = new RangeNode<float>(1f, 0f, 2f);
 
@@ -681,4 +684,65 @@ public class VoyageAreaSetting
 
     [Menu(null, "Comma-separated reward categories this area's value belongs to; empty means untagged.")]
     public TextNode Tags { get; set; } = new TextNode("");
+}
+
+
+/// <summary>
+/// Multipliers applied to chart modifier weights by what the modifier rewards.
+///
+/// The profile's weights came from its original author and treat everything as equally desirable: a
+/// unique-belt chance is weighted 82 against 70 for extra rare monsters. For a run chasing currency
+/// and sulphur that is wrong, and it is why boards came back full of unique-jewellery modifiers.
+/// These scale the profile rather than replacing it, so the profile stays the source of magnitudes.
+/// </summary>
+[Submenu(CollapsedByDefault = true)]
+public class ModifierTagWeights
+{
+    [Menu("Currency")] public RangeNode<float> Currency { get; set; } = new RangeNode<float>(1f, 0f, 3f);
+    [Menu("Scarabs")] public RangeNode<float> Scarabs { get; set; } = new RangeNode<float>(1f, 0f, 3f);
+    [Menu("Dead Man Sulphur")] public RangeNode<float> Resources { get; set; } = new RangeNode<float>(1f, 0f, 3f);
+    [Menu("Strongboxes")] public RangeNode<float> Strongboxes { get; set; } = new RangeNode<float>(1f, 0f, 3f);
+    [Menu("Essences")] public RangeNode<float> Essences { get; set; } = new RangeNode<float>(1f, 0f, 3f);
+    [Menu("Monsters")] public RangeNode<float> Monsters { get; set; } = new RangeNode<float>(1f, 0f, 3f);
+    [Menu("Magic monsters")] public RangeNode<float> MagicMonsters { get; set; } = new RangeNode<float>(1f, 0f, 3f);
+    [Menu("Rare monsters")] public RangeNode<float> RareMonsters { get; set; } = new RangeNode<float>(1f, 0f, 3f);
+    [Menu("Golden Lanterns")] public RangeNode<float> Lanterns { get; set; } = new RangeNode<float>(1f, 0f, 3f);
+
+    [Menu("Unique items", "Unique jewellery chances are weighted high in the profile and are worth little to a currency run.")]
+    public RangeNode<float> Uniques { get; set; } = new RangeNode<float>(0.3f, 0f, 3f);
+
+    [Menu("Item rarity")] public RangeNode<float> Rarity { get; set; } = new RangeNode<float>(0.6f, 0f, 3f);
+    [Menu("Equipment")] public RangeNode<float> Equipment { get; set; } = new RangeNode<float>(0.3f, 0f, 3f);
+    [Menu("Gold")] public RangeNode<float> Gold { get; set; } = new RangeNode<float>(0.2f, 0f, 3f);
+    [Menu("Experience")] public RangeNode<float> Experience { get; set; } = new RangeNode<float>(0.1f, 0f, 3f);
+
+    /// <summary>Smallest multiplier among the tags a modifier carries; untagged modifiers are untouched.</summary>
+    public double For(ModifierTag tags)
+    {
+        if (tags == ModifierTag.None)
+            return 1;
+
+        var result = double.MaxValue;
+        Consider(tags, ModifierTag.Currency, Currency.Value, ref result);
+        Consider(tags, ModifierTag.Scarabs, Scarabs.Value, ref result);
+        Consider(tags, ModifierTag.Resources, Resources.Value, ref result);
+        Consider(tags, ModifierTag.Strongboxes, Strongboxes.Value, ref result);
+        Consider(tags, ModifierTag.Essences, Essences.Value, ref result);
+        Consider(tags, ModifierTag.Monsters, Monsters.Value, ref result);
+        Consider(tags, ModifierTag.MagicMonsters, MagicMonsters.Value, ref result);
+        Consider(tags, ModifierTag.RareMonsters, RareMonsters.Value, ref result);
+        Consider(tags, ModifierTag.Lanterns, Lanterns.Value, ref result);
+        Consider(tags, ModifierTag.Uniques, Uniques.Value, ref result);
+        Consider(tags, ModifierTag.Rarity, Rarity.Value, ref result);
+        Consider(tags, ModifierTag.Equipment, Equipment.Value, ref result);
+        Consider(tags, ModifierTag.Gold, Gold.Value, ref result);
+        Consider(tags, ModifierTag.Experience, Experience.Value, ref result);
+        return result == double.MaxValue ? 1 : result;
+    }
+
+    private static void Consider(ModifierTag tags, ModifierTag tag, double weight, ref double result)
+    {
+        if ((tags & tag) != 0 && weight < result)
+            result = weight;
+    }
 }

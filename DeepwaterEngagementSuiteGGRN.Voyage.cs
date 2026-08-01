@@ -418,9 +418,15 @@ public partial class DeepwaterEngagementSuiteGGRN
                             {
                                 var chartMod = Settings.VoyageSettings.ChartModifiers.Content
                                     .FirstOrDefault(cm => cm.Id.Value.Equals(im.RawName, StringComparison.OrdinalIgnoreCase));
-                                var configuredWeight = chartMod?.Weight.Value;
-                                return new Modifier(im.RawName, configuredWeight ?? 0, chartMod?.IsGlobal.Value ?? false,
-                                    ModifierTagParser.Parse(chartMod?.Tags.Value, ModifierTag.None));
+                                var configuredWeight = chartMod?.Weight.Value ?? 0;
+                                var modTags = ModifierTagParser.Parse(chartMod?.Tags.Value, ModifierTag.None);
+
+                                // Scale by what the modifier rewards. The profile weights rate a
+                                // unique-belt chance above extra rare monsters, which is not true
+                                // for a run chasing currency.
+                                var focus = Settings.VoyageSettings.TagWeights.For(modTags);
+                                return new Modifier(im.RawName, configuredWeight * focus,
+                                    chartMod?.IsGlobal.Value ?? false, modTags);
                             }) ?? []
                             ],
                             selfStats,
