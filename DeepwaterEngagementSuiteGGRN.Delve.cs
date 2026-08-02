@@ -104,6 +104,9 @@ public partial class DeepwaterEngagementSuiteGGRN
         /// end. Those are the ones worth being told about from across the room.
         /// </summary>
         public bool IconHidden { get; init; }
+
+        /// <summary>Worth, on the three steps a decision has. See <see cref="DelveTier"/>.</summary>
+        public int Tier { get; init; }
     }
 
     /// <summary>
@@ -300,6 +303,22 @@ public partial class DeepwaterEngagementSuiteGGRN
         return value;
     }
 
+    /// <summary>
+    /// How badly this is worth the walk, on the three steps a decision actually has: take it if you
+    /// pass it, leave the route for it, or drop what you are doing.
+    ///
+    /// Colouring by category told you what a thing was, which its own name already says. What is
+    /// missing while the cart keeps moving is whether it is worth anything, so the colour says that.
+    /// </summary>
+    private static int DelveTier(double baseValue) => baseValue >= 150 ? 3 : baseValue >= 90 ? 2 : 1;
+
+    private static Color DelveTierColor(int tier) => tier switch
+    {
+        3 => Color.Magenta,
+        2 => Color.Gold,
+        _ => Color.Silver,
+    };
+
     private static string DelveLabel(DelveKind kind, int amount, string renderName = null)
     {
         // A vein or a fossil already names its own grade better than any category word could, so its
@@ -466,6 +485,12 @@ public partial class DeepwaterEngagementSuiteGGRN
                     }
 
                     var value = kind.Category == DelveCategory.Wall ? 0 : DelveBaseValue(kind, amount);
+                    var tier = DelveTier(value);
+
+                    // A wall is never dropped for being worth too little: what it is worth is
+                    // whatever is behind it, which is the thing the wall exists to tell you about.
+                    if (kind.Category != DelveCategory.Wall && tier < settings.MinimumTier.Value)
+                        continue;
 
                     results.Add(new DelveTarget(
                         entity.Id,
@@ -474,7 +499,7 @@ public partial class DeepwaterEngagementSuiteGGRN
                         kind,
                         amount,
                         DelveLabel(kind, amount, renderName),
-                        value / Math.Max(30f, distance)) { IconHidden = iconHidden });
+                        value / Math.Max(30f, distance)) { IconHidden = iconHidden, Tier = tier });
                 }
                 catch
                 {
@@ -536,7 +561,9 @@ public partial class DeepwaterEngagementSuiteGGRN
 
         var walls = targets.Where(x => x.Kind.Category == DelveCategory.Wall).ToList();
 
-        if (largeMapOpen)
+        // MinimapIcons already writes a label on every one of these, and two plugins writing the
+        // same word on the same spot is less readable than one.
+        if (largeMapOpen && settings.DrawMapLabels.Value)
             DrawDelveMap(playerPos, targets, walls, settings);
 
         DrawDelveList(targets, walls, settings);
@@ -603,7 +630,7 @@ public partial class DeepwaterEngagementSuiteGGRN
             {
                 ImGui.TableNextRow();
                 ImGui.TableNextColumn();
-                ImGui.TextColored(target.Kind.Color.ToImguiVec4(), target.Kind.Category.ToString());
+                ImGui.TextColored(DelveTierColor(target.Tier).ToImguiVec4(), target.Kind.Category.ToString());
                 ImGui.TableNextColumn();
                 ImGui.Text(target.Label);
                 ImGui.TableNextColumn();

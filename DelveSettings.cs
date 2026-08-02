@@ -22,6 +22,17 @@ public class DelveSettings
     [Menu("Hide chests that drop nothing", "The mine spawns decoy chests whose own name says NoDrops.")]
     public ToggleNode HideEmpty { get; set; } = new ToggleNode(true);
 
+    [Menu("Only show things worth at least this much",
+        "1 lists everything. 2 drops the filler and leaves what is worth a detour. 3 leaves only the " +
+        "things worth abandoning what you were doing for - special chamber chests, the top resonators, " +
+        "the big azurite and the good fossils.")]
+    public RangeNode<int> MinimumTier { get; set; } = new RangeNode<int>(2, 1, 3);
+
+    [Menu("Also label objects on the map",
+        "Off because MinimapIcons already labels them, and two plugins writing the same word over each " +
+        "other is unreadable. The panel ranks them either way.")]
+    public ToggleNode DrawMapLabels { get; set; } = new ToggleNode(false);
+
     [Menu("Hide the plainest chests",
         "The generic supply chests are the mine's filler. They are worth taking if you walk past one " +
         "and never worth a detour, so they only clutter the list.")]
