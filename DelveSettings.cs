@@ -32,14 +32,14 @@ public class DelveAzuriteSettings
     [Menu("Mark azurite veins")]
     public ToggleNode Enabled { get; set; } = new ToggleNode(true);
 
-    [Menu("A vein this big counts as worth a detour", "Veins at or above this go up a grade and get a brighter mark.")]
-    public RangeNode<int> BigThreshold { get; set; } = new RangeNode<int>(400, 1, 5000);
+    [Menu("Only show veins at least this rich",
+        "The mine grades a vein in its own name - a Flawed vein is the poorest. 1 shows every vein, " +
+        "raise it to be told only about the ones worth a detour.")]
+    public RangeNode<int> MinimumGrade { get; set; } = new RangeNode<int>(1, 1, 4);
 
-    [Menu("A vein this big counts as drop-everything", "The top grade. Rare enough that it should stand out on its own.")]
-    public RangeNode<int> HugeThreshold { get; set; } = new RangeNode<int>(800, 1, 20000);
-
-    [Menu("Ignore veins smaller than this", "Set to 0 to mark every vein.")]
-    public RangeNode<int> IgnoreBelow { get; set; } = new RangeNode<int>(0, 0, 5000);
+    [Menu("Only show fossils at least this rich",
+        "1 shows every fossil chest, 3 only the types worth stopping the cart for.")]
+    public RangeNode<int> MinimumFossilGrade { get; set; } = new RangeNode<int>(1, 1, 3);
 }
 
 [Submenu(CollapsedByDefault = false)]

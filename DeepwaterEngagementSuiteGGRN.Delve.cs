@@ -7,6 +7,8 @@ using ExileCore.PoEMemory.Components;
 using ExileCore.PoEMemory.Elements;
 using ExileCore.PoEMemory.MemoryObjects;
 using ExileCore.Shared.Enums;
+using ExileCore.Shared.Helpers;
+using ImGuiNET;
 using SharpDX;
 using Vector2 = System.Numerics.Vector2;
 
@@ -38,6 +40,50 @@ public partial class DeepwaterEngagementSuiteGGRN
     private static readonly Regex DelveAmountPattern = new(@"(\d[\d,\s]*)", RegexOptions.Compiled);
 
     private readonly Dictionary<uint, string> _delveNameCache = new();
+
+    /// <summary>
+    /// Every distinct vein and fossil the mine has shown, kept so the grades can be checked against
+    /// what actually turns up rather than against a table written from memory. The wiki is behind a
+    /// bot wall and the grade is a word, not a number, so this is the only honest source for it.
+    /// </summary>
+    private readonly Dictionary<string, string> _delveSeenNames = new(StringComparer.Ordinal);
+
+    /// <summary>Set when a name is seen for the first time; the next snapshot carries the list.</summary>
+    private bool _delveNamesDirty;
+
+    /// <summary>
+    /// How rich a fossil is, on a scale the mine does not provide. The type is written into the
+    /// chest's path, and which types are worth stopping for is a market question rather than a game
+    /// one, so this is a starting table meant to be corrected against real drops - anything not
+    /// listed lands in the middle and gets recorded.
+    /// </summary>
+    private static readonly Dictionary<string, int> FossilGrades = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["Faceted"] = 3,
+        ["Bloodstained"] = 3,
+        ["Sanctified"] = 3,
+        ["Fractured"] = 3,
+        ["Glyphic"] = 3,
+        ["Tangled"] = 3,
+        ["Hollow"] = 3,
+        ["Encrusted"] = 2,
+        ["Prismatic"] = 2,
+        ["Gilded"] = 2,
+        ["Bound"] = 2,
+        ["Perfect"] = 2,
+        ["Deft"] = 1,
+        ["Dense"] = 1,
+        ["Aetheric"] = 1,
+        ["Serrated"] = 1,
+        ["Metallic"] = 1,
+        ["Jagged"] = 1,
+        ["Corroded"] = 1,
+        ["Pristine"] = 1,
+        ["Lucent"] = 1,
+        ["Scorched"] = 1,
+        ["Frigid"] = 1,
+        ["Aberrant"] = 1,
+    };
 
     private sealed record DelveTarget(
         uint Id,
@@ -86,7 +132,13 @@ public partial class DeepwaterEngagementSuiteGGRN
 
         var tail = path[DelveChestPrefix.Length..];
         var offPath = tail.StartsWith("OffPath", StringComparison.Ordinal);
-        var behindWall = tail.StartsWith("Dynamite", StringComparison.Ordinal);
+
+        // "Dynamite" marks what is sealed behind a wall, and it is not always the start of the name:
+        // a fossil behind a wall is a DenseFossilChestDynamite, so matching only the prefix left the
+        // richest sealed chests looking like ordinary ones sitting in the open. The supply crate that
+        // hands out dynamite carries the same word and is the one thing that is not sealed by it.
+        var supplies = tail.Contains("MiningSupplies", StringComparison.Ordinal);
+        var behindWall = !supplies && tail.Contains("Dynamite", StringComparison.Ordinal);
         var empty = tail.EndsWith("NoDrops", StringComparison.OrdinalIgnoreCase)
                     || (renderName?.Contains("NoDrops", StringComparison.OrdinalIgnoreCase) ?? false);
 
@@ -124,10 +176,47 @@ public partial class DeepwaterEngagementSuiteGGRN
         else if (tail.Contains("Generic", StringComparison.Ordinal))
             category = DelveCategory.Generic;
 
+        // Azurite and fossils grade on their own scales rather than on the trailing digit, which is
+        // just the art variant for them. A vein numbers itself right after its name, and a fossil
+        // says which fossil it is in the word before "Fossil".
+        if (category == DelveCategory.Azurite)
+            tier = Math.Max(1, LeadingNumberAfter(tail, "AzuriteVein"));
+        else if (category == DelveCategory.Fossil)
+            tier = FossilGrade(tail);
+
         if (empty)
             category = DelveCategory.Empty;
 
         return new DelveKind(category, offPath, behindWall, empty, tier);
+    }
+
+    /// <summary>The number written immediately after <paramref name="marker"/>, or zero.</summary>
+    private static int LeadingNumberAfter(string text, string marker)
+    {
+        var at = text.IndexOf(marker, StringComparison.Ordinal);
+        if (at < 0)
+            return 0;
+
+        var value = 0;
+        for (var i = at + marker.Length; i < text.Length && char.IsDigit(text[i]); i++)
+            value = value * 10 + (text[i] - '0');
+
+        return value;
+    }
+
+    /// <summary>
+    /// Grades a fossil chest from the fossil named in its path. Unknown types land in the middle
+    /// rather than at either end, so a fossil added by a new league is neither hidden nor promoted
+    /// over one that is actually worth stopping for.
+    /// </summary>
+    private static int FossilGrade(string tail)
+    {
+        var at = tail.IndexOf("Fossil", StringComparison.Ordinal);
+        if (at <= 0)
+            return 2;
+
+        var name = tail[..at];
+        return FossilGrades.TryGetValue(name, out var grade) ? grade : 2;
     }
 
     /// <summary>
@@ -165,15 +254,13 @@ public partial class DeepwaterEngagementSuiteGGRN
     /// </summary>
     private double DelveBaseValue(DelveKind kind, int amount)
     {
-        var azurite = Settings.DelveSettings.Azurite;
-
         double value = kind.Category switch
         {
-            DelveCategory.Azurite => amount >= azurite.HugeThreshold.Value ? 260
-                : amount >= azurite.BigThreshold.Value ? 150
-                : 70,
+            // A vein's grade is the whole decision, so it drives the value directly. The amount is
+            // still added when the mine happens to print one, which it does not for veins.
+            DelveCategory.Azurite => 60 + 90 * Math.Max(0, kind.Tier - 1) + amount * 0.1,
             DelveCategory.Resonator => 60 + 40 * kind.Tier,
-            DelveCategory.Fossil => 140,
+            DelveCategory.Fossil => 60 + 60 * Math.Max(0, kind.Tier),
             DelveCategory.Divination => 120,
             DelveCategory.Currency => 110,
             DelveCategory.Dynamite => 80,
@@ -202,8 +289,16 @@ public partial class DeepwaterEngagementSuiteGGRN
         return value;
     }
 
-    private static string DelveLabel(DelveKind kind, int amount)
+    private static string DelveLabel(DelveKind kind, int amount, string renderName = null)
     {
+        // A vein or a fossil already names its own grade better than any category word could, so its
+        // own name is used where the mine gives one.
+        if (kind.Category is DelveCategory.Azurite or DelveCategory.Fossil && !string.IsNullOrEmpty(renderName))
+        {
+            var own = $"{renderName} [{kind.Tier}]";
+            return kind.BehindWall ? "[wall] " + own : kind.OffPath ? "[dark] " + own : own;
+        }
+
         var name = kind.Category switch
         {
             DelveCategory.Azurite => amount > 0 ? $"Azurite {amount}" : "Azurite",
@@ -252,10 +347,13 @@ public partial class DeepwaterEngagementSuiteGGRN
         var results = new List<DelveTarget>();
         var seen = new HashSet<uint>();
 
+        // Only the kinds the mine actually files its loot and its walls under. The census showed
+        // MiscellaneousObjects alone running to thirteen hundred entries in a room, and classifying
+        // every one of them each frame buys nothing: chests are Chest, walls are IngameIcon.
         foreach (var type in new[]
                  {
-                     EntityType.Chest, EntityType.Terrain, EntityType.IngameIcon,
-                     EntityType.TriggerableBlockage, EntityType.MiscellaneousObjects, EntityType.None,
+                     EntityType.Chest, EntityType.IngameIcon, EntityType.Terrain,
+                     EntityType.TriggerableBlockage,
                  })
         {
             List<Entity> entities;
@@ -310,12 +408,25 @@ public partial class DeepwaterEngagementSuiteGGRN
                         ? ParseDelveAmount(renderName)
                         : 0;
 
+                    // Record what the mine calls each vein and fossil. The grade is a word, and the
+                    // only trustworthy list of those words is the one the mine actually shows.
+                    if (kind.Category is DelveCategory.Azurite or DelveCategory.Fossil
+                        && renderName.Length > 0
+                        && !_delveSeenNames.ContainsKey(renderName))
+                    {
+                        _delveSeenNames[renderName] = $"{path} tier={kind.Tier}";
+                        _delveNamesDirty = true;
+                    }
+
                     if (kind.Category == DelveCategory.Azurite)
                     {
-                        if (!settings.Azurite.Enabled.Value)
+                        if (!settings.Azurite.Enabled.Value || kind.Tier < settings.Azurite.MinimumGrade.Value)
                             continue;
-                        if (amount > 0 && amount < settings.Azurite.IgnoreBelow.Value)
-                            continue;
+                    }
+                    else if (kind.Category == DelveCategory.Fossil
+                             && kind.Tier < settings.Azurite.MinimumFossilGrade.Value)
+                    {
+                        continue;
                     }
 
                     var value = kind.Category == DelveCategory.Wall ? 0 : DelveBaseValue(kind, amount);
@@ -326,7 +437,7 @@ public partial class DeepwaterEngagementSuiteGGRN
                         distance,
                         kind,
                         amount,
-                        DelveLabel(kind, amount),
+                        DelveLabel(kind, amount, renderName),
                         value / Math.Max(30f, distance)));
                 }
                 catch
@@ -407,7 +518,12 @@ public partial class DeepwaterEngagementSuiteGGRN
         }
     }
 
-    /// <summary>The ranked list, so the next thing to walk to is readable without opening the map.</summary>
+    /// <summary>
+    /// The ranked list, so the next thing to walk to is readable without opening the map.
+    ///
+    /// Drawn as its own window rather than as text painted at a fixed corner: the fixed version
+    /// landed underneath the voyage panel and could not be moved, resized or found.
+    /// </summary>
     private void DrawDelveList(List<DelveTarget> targets, List<DelveTarget> walls, DelveSettings settings)
     {
         var ranked = targets
@@ -416,25 +532,45 @@ public partial class DeepwaterEngagementSuiteGGRN
             .Take(settings.ListLength.Value)
             .ToList();
 
-        if (ranked.Count == 0)
+        if (ranked.Count == 0 && walls.Count == 0)
             return;
 
-        using (Graphics.SetTextScale(settings.FontScale.Value))
+        ImGui.SetNextWindowBgAlpha(0.85f);
+        if (!ImGui.Begin("Mine", ImGuiWindowFlags.AlwaysAutoResize))
         {
-            var y = 260f;
-            Graphics.DrawTextWithBackground("Mine", new System.Numerics.Vector2(20, y), Color.White, Color.Black);
-            y += 24 * settings.FontScale.Value;
+            ImGui.End();
+            return;
+        }
 
+        ImGui.SetWindowFontScale(settings.FontScale.Value);
+
+        if (ImGui.BeginTable("mine", 3, ImGuiTableFlags.Borders | ImGuiTableFlags.SizingStretchProp))
+        {
             foreach (var target in ranked)
             {
-                Graphics.DrawTextWithBackground(
-                    $"{target.Label}  {target.Distance:F0}",
-                    new System.Numerics.Vector2(20, y),
-                    target.Kind.Color,
-                    Color.Black);
-                y += 22 * settings.FontScale.Value;
+                ImGui.TableNextRow();
+                ImGui.TableNextColumn();
+                ImGui.TextColored(target.Kind.Color.ToImguiVec4(), target.Kind.Category.ToString());
+                ImGui.TableNextColumn();
+                ImGui.Text(target.Label);
+                ImGui.TableNextColumn();
+                ImGui.Text($"{target.Distance:F0}");
             }
+
+            ImGui.EndTable();
         }
+
+        foreach (var wall in walls.OrderBy(x => x.Distance))
+        {
+            var contents = DelveWallContents(wall, targets, settings.Walls.ContentsRadius.Value);
+            ImGui.TextColored(Color.Magenta.ToImguiVec4(),
+                contents == null
+                    ? $"wall  {wall.Distance:F0}"
+                    : $"wall -> {contents}   {wall.Distance:F0}");
+        }
+
+        ImGui.SetWindowFontScale(1f);
+        ImGui.End();
     }
 
     /// <summary>

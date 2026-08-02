@@ -21,7 +21,7 @@ namespace DeepwaterEngagementSuiteGGRN;
 public partial class DeepwaterEngagementSuiteGGRN
 {
     /// <summary>How deep to walk the interface tree. Deeper finds more but the file grows fast.</summary>
-    private const int UiDumpDepth = 6;
+    private const int UiDumpDepth = 10;
 
     /// <summary>
     /// How far to look for objects. The guide only cares about what is close enough to walk to, but
@@ -85,6 +85,9 @@ public partial class DeepwaterEngagementSuiteGGRN
                 player = new { x = playerPos.X, y = playerPos.Y },
                 guideCandidates = _lastCandidateCount,
                 objectCensus = census.OrderByDescending(x => x.Value).ToDictionary(x => x.Key, x => x.Value),
+                // Grades for veins and fossils are words, and this is the running list of the words
+                // the mine has actually used - the only source for them that cannot be out of date.
+                delveNamesSeen = _delveSeenNames,
                 nearbyObjects = nearby,
                 visibleUi = VisibleUiDump(),
             };

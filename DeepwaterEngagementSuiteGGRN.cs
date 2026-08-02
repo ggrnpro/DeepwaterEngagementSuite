@@ -504,10 +504,16 @@ public partial class DeepwaterEngagementSuiteGGRN : BaseSettingsPlugin<Deepwater
         // The mine is not a voyage either, so this runs before the same bail-out.
         DrawDelveOverlay();
 
-        DrawVoyageHighlights();
-        TrackVoyageRun();
-        DrawLanternRoute();
-        DrawObjectiveGuide();
+        // In the mine the voyage guide has nothing to say and its window sits exactly where the mine
+        // panel belongs, so it is stood down rather than left to cover the panel that replaces it.
+        if (!InAzuriteMine())
+        {
+            DrawVoyageHighlights();
+            TrackVoyageRun();
+            DrawLanternRoute();
+            DrawObjectiveGuide();
+        }
+
         DrawStrongboxAdvice();
 
         // The board snapshot only fires with the voyage window open, so the same key writes an
