@@ -22,6 +22,11 @@ public class DelveSettings
     [Menu("Hide chests that drop nothing", "The mine spawns decoy chests whose own name says NoDrops.")]
     public ToggleNode HideEmpty { get; set; } = new ToggleNode(true);
 
+    [Menu("Hide the plainest chests",
+        "The generic supply chests are the mine's filler. They are worth taking if you walk past one " +
+        "and never worth a detour, so they only clutter the list.")]
+    public ToggleNode HideGeneric { get; set; } = new ToggleNode(true);
+
     [Menu("Export the mine's own database",
         "Writes every biome, room feature and league modifier the game ships to a snapshot file, so " +
         "node ranking is built on the installed patch rather than on a community page.")]

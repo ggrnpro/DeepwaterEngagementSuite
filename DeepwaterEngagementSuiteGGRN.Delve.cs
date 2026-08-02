@@ -406,6 +406,9 @@ public partial class DeepwaterEngagementSuiteGGRN
                     if (kind.Empty && settings.HideEmpty.Value)
                         continue;
 
+                    if (kind.Category == DelveCategory.Generic && settings.HideGeneric.Value)
+                        continue;
+
                     var distance = Vector2.Distance(playerPos, entity.GridPosNum);
                     if (distance > settings.Range.Value)
                         continue;
@@ -501,6 +504,12 @@ public partial class DeepwaterEngagementSuiteGGRN
     {
         var settings = Settings.DelveSettings;
         if (!settings.Enabled.Value || !InAzuriteMine())
+            return;
+
+        // The chart is a full-screen panel over the same area, and the overlay's own labels were
+        // being painted on top of it - a chest called "Generic" behind the panel read as a node type
+        // on it. Nothing in the area is worth marking while the map of where to go next is open.
+        if (FindSubterraneanChart() != null)
             return;
 
         bool largeMapOpen;
