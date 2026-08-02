@@ -556,11 +556,6 @@ public partial class DeepwaterEngagementSuiteGGRN
                     var value = kind.Category == DelveCategory.Wall ? 0 : DelveBaseValue(kind, amount);
                     var tier = DelveTier(value);
 
-                    // A wall is never dropped for being worth too little: what it is worth is
-                    // whatever is behind it, which is the thing the wall exists to tell you about.
-                    if (kind.Category != DelveCategory.Wall && tier < settings.MinimumTier.Value)
-                        continue;
-
                     results.Add(new DelveTarget(
                         entity.Id,
                         entity.GridPosNum,
@@ -833,18 +828,21 @@ public partial class DeepwaterEngagementSuiteGGRN
     {
         foreach (var room in GroupDelveRooms(targets, settings.RoomRadius.Value))
         {
-            var worth = room.BestTier >= 2;
-            var color = worth ? Color.Lime : Color.Gray;
+            // Red rather than nothing. A room left unmarked reads as a room not yet found, and the
+            // walk in to check costs the same as the walk in to loot it - so a room known to be
+            // rubbish is worth saying so about.
+            var worth = room.BestTier >= settings.MinimumTier.Value;
+            var color = worth ? Color.Lime : Color.Red;
             var screen = Graphics.GridToMap(room.Centre, playerPos);
-            var size = worth ? 14f : 8f;
+            var size = worth ? 14f : 10f;
 
             Graphics.DrawFrame(
                 new RectangleF(screen.X - size, screen.Y - size, size * 2, size * 2),
                 color,
-                worth ? 3 : 1);
+                worth ? 4 : 2);
 
             Graphics.DrawTextWithBackground(
-                worth ? $"GO  {room.Count}  {room.Best}" : $"skip  {room.Count}",
+                worth ? $"GO  {room.Count}  {room.Best}" : $"NO  {room.Count}",
                 new System.Numerics.Vector2(screen.X, screen.Y + size + 2),
                 color,
                 FontAlign.Center,
@@ -879,6 +877,9 @@ public partial class DeepwaterEngagementSuiteGGRN
                 continue;
             }
 
+            if (target.Tier < settings.MinimumTier.Value)
+                continue;
+
             // A mark rather than the name: MinimapIcons writes the name already, and what it cannot
             // say is whether the thing is worth the walk. The ring is the answer to that.
             var tierColor = DelveTierColor(target.Tier);
@@ -900,6 +901,7 @@ public partial class DeepwaterEngagementSuiteGGRN
     {
         var ranked = targets
             .Where(x => x.Kind.Category != DelveCategory.Wall)
+            .Where(x => x.Tier >= settings.MinimumTier.Value)
             .OrderByDescending(x => x.Score)
             .Take(settings.ListLength.Value)
             .ToList();
