@@ -19,6 +19,15 @@ public class DelveSettings
     [Menu("Text size")]
     public RangeNode<float> FontScale { get; set; } = new RangeNode<float>(1.6f, 0.5f, 4f);
 
+    [Menu("Mark whole rooms rather than every chest",
+        "The buried towns put a handful of chests in each of two or three rooms off one corridor. One " +
+        "mark per room answers the question you actually have down there - is this room worth walking " +
+        "into - where a mark per chest just repeats the loot filter.")]
+    public ToggleNode GroupIntoRooms { get; set; } = new ToggleNode(true);
+
+    [Menu("How far apart two chests can be and still be one room")]
+    public RangeNode<int> RoomRadius { get; set; } = new RangeNode<int>(90, 20, 400);
+
     [Menu("Hide chests that drop nothing", "The mine spawns decoy chests whose own name says NoDrops.")]
     public ToggleNode HideEmpty { get; set; } = new ToggleNode(true);
 

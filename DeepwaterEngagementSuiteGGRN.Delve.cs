@@ -665,10 +665,108 @@ public partial class DeepwaterEngagementSuiteGGRN
         // MinimapIcons already writes a label on every one of these, and two plugins writing the
         // same word on the same spot is less readable than one.
         if (largeMapOpen && settings.DrawMapLabels.Value)
-            DrawDelveMap(playerPos, targets, walls, settings);
+        {
+            if (settings.GroupIntoRooms.Value)
+            {
+                DrawDelveRooms(playerPos, targets, settings);
+                DrawDelveMap(playerPos, targets.Where(x => x.Kind.Category == DelveCategory.Wall).ToList(), walls, settings);
+            }
+            else
+            {
+                DrawDelveMap(playerPos, targets, walls, settings);
+            }
+        }
 
         DrawDelveList(targets, walls, settings);
         DrawDelveWallPrompt(walls, targets, settings);
+    }
+
+
+    /// <summary>A cluster of chests close enough together to be one room.</summary>
+    private sealed record DelveRoom(Vector2 Centre, int Count, int BestTier, double Value, string Best);
+
+    /// <summary>
+    /// Groups chests that stand together into rooms.
+    ///
+    /// The buried towns are a corridor with two or three rooms off it and a handful of chests in
+    /// each. Marking every chest there answers a question nobody has - the loot filter already names
+    /// them - while the question actually being asked, standing in the corridor, is whether this room
+    /// is worth walking into at all. One mark per room answers that one.
+    ///
+    /// Plain single-link clustering: chests within reach of each other are the same room. The rooms
+    /// are small and far apart, so nothing cleverer earns its keep.
+    /// </summary>
+    private static List<DelveRoom> GroupDelveRooms(List<DelveTarget> targets, float radius)
+    {
+        var rooms = new List<DelveRoom>();
+        var taken = new bool[targets.Count];
+
+        for (var i = 0; i < targets.Count; i++)
+        {
+            if (taken[i] || targets[i].Kind.Category == DelveCategory.Wall)
+                continue;
+
+            var members = new List<DelveTarget> { targets[i] };
+            taken[i] = true;
+
+            // Grow the room until nothing else is within reach of anything already in it.
+            for (var grew = true; grew;)
+            {
+                grew = false;
+                for (var j = 0; j < targets.Count; j++)
+                {
+                    if (taken[j] || targets[j].Kind.Category == DelveCategory.Wall)
+                        continue;
+
+                    if (!members.Any(m => Vector2.Distance(m.GridPos, targets[j].GridPos) <= radius))
+                        continue;
+
+                    members.Add(targets[j]);
+                    taken[j] = true;
+                    grew = true;
+                }
+            }
+
+            var centre = new Vector2(members.Average(m => m.GridPos.X), members.Average(m => m.GridPos.Y));
+            var best = members.OrderByDescending(m => m.Tier).First();
+            rooms.Add(new DelveRoom(
+                centre,
+                members.Count,
+                members.Max(m => m.Tier),
+                members.Sum(m => m.Tier),
+                best.Label));
+        }
+
+        return rooms;
+    }
+
+    /// <summary>
+    /// One mark per room: green to walk in, grey to walk past.
+    ///
+    /// Two colours because there are two answers. The count and the best thing in the room follow, so
+    /// the mark can be argued with rather than only obeyed.
+    /// </summary>
+    private void DrawDelveRooms(Vector2 playerPos, List<DelveTarget> targets, DelveSettings settings)
+    {
+        foreach (var room in GroupDelveRooms(targets, settings.RoomRadius.Value))
+        {
+            var worth = room.BestTier >= 2;
+            var color = worth ? Color.Lime : Color.Gray;
+            var screen = Graphics.GridToMap(room.Centre, playerPos);
+            var size = worth ? 14f : 8f;
+
+            Graphics.DrawFrame(
+                new RectangleF(screen.X - size, screen.Y - size, size * 2, size * 2),
+                color,
+                worth ? 3 : 1);
+
+            Graphics.DrawTextWithBackground(
+                worth ? $"GO  {room.Count}  {room.Best}" : $"skip  {room.Count}",
+                new System.Numerics.Vector2(screen.X, screen.Y + size + 2),
+                color,
+                FontAlign.Center,
+                Color.Black);
+        }
     }
 
     private void DrawDelveMap(Vector2 playerPos, List<DelveTarget> targets, List<DelveTarget> walls, DelveSettings settings)
