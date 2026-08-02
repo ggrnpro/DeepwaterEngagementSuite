@@ -674,10 +674,64 @@ public partial class DeepwaterEngagementSuiteGGRN
             DrawDelveMap(playerPos, targets, walls, settings, settings.GroupIntoRooms.Value);
         }
 
+        DrawDelveSecretGuide(playerPos, walls, targets, settings, largeMapOpen);
         DrawDelveList(targets, walls, settings);
         DrawDelveWallPrompt(walls, targets, settings);
     }
 
+
+
+    /// <summary>
+    /// Leads to the way through.
+    ///
+    /// A wall the game does not draw is a route the map is denying exists, so being told the room has
+    /// one is only half of it - the other half is which way to walk, and that half is needed while
+    /// running rather than while standing still with the map open. So the line is drawn in the world
+    /// as well, and it picks the nearest way through rather than the richest: the point of a passage
+    /// is that it is the way, and a further one is not a better way.
+    /// </summary>
+    private void DrawDelveSecretGuide(Vector2 playerPos, List<DelveTarget> walls, List<DelveTarget> all, DelveSettings settings, bool largeMapOpen)
+    {
+        if (!settings.Walls.GuideToSecret.Value)
+            return;
+
+        var target = walls
+            .Where(w => w.IconHidden
+                        || DelveWallVerdict(w, all, settings.Walls.ContentsRadius.Value).Tier >= settings.Walls.MinimumTier.Value)
+            .OrderBy(w => w.Distance)
+            .FirstOrDefault();
+
+        if (target == null)
+            return;
+
+        var color = target.IconHidden ? Color.Lime : Color.Magenta;
+
+        if (largeMapOpen)
+        {
+            Graphics.DrawLine(
+                Graphics.GridToMap(playerPos, playerPos),
+                Graphics.GridToMap(target.GridPos, playerPos),
+                3,
+                color);
+            return;
+        }
+
+        if (!settings.Walls.GuideInWorld.Value)
+            return;
+
+        try
+        {
+            Graphics.DrawLine(
+                GetWorldScreenPosition(playerPos),
+                GetWorldScreenPosition(target.GridPos),
+                3,
+                color);
+        }
+        catch
+        {
+            // the world projection is not readable during a load
+        }
+    }
 
     /// <summary>A cluster of chests close enough together to be one room.</summary>
     private sealed record DelveRoom(Vector2 Centre, int Count, int BestTier, double Value, string Best);

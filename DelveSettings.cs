@@ -94,6 +94,14 @@ public class DelveWallSettings
         "Walls the game has not revealed are always marked - there the passage itself is the reward.")]
     public RangeNode<int> MinimumTier { get; set; } = new RangeNode<int>(2, 0, 3);
 
+    [Menu("Draw a line to the way through",
+        "A hidden wall is a route the map is denying exists, so knowing the room has one is only half " +
+        "of it - the line says which way to walk.")]
+    public ToggleNode GuideToSecret { get; set; } = new ToggleNode(true);
+
+    [Menu("Keep the line up while running", "Drawn in the world too, not only on the open map.")]
+    public ToggleNode GuideInWorld { get; set; } = new ToggleNode(true);
+
     [Menu("Prompt to throw dynamite within this distance", "How close you have to be before the reminder appears.")]
     public RangeNode<int> PromptDistance { get; set; } = new RangeNode<int>(70, 10, 400);
 
