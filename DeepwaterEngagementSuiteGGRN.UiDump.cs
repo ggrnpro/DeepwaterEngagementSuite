@@ -89,6 +89,9 @@ public partial class DeepwaterEngagementSuiteGGRN
                 // the mine has actually used - the only source for them that cannot be out of date.
                 delveNamesSeen = _delveSeenNames,
                 nearbyObjects = nearby,
+                // Null unless the chart is open. Every cell at once, where the screen only ever
+                // names the one under the cursor.
+                subterraneanChart = SubterraneanChartDump(),
                 visibleUi = VisibleUiDump(),
             };
 
