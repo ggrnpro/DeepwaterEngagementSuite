@@ -667,14 +667,11 @@ public partial class DeepwaterEngagementSuiteGGRN
         if (largeMapOpen && settings.DrawMapLabels.Value)
         {
             if (settings.GroupIntoRooms.Value)
-            {
                 DrawDelveRooms(playerPos, targets, settings);
-                DrawDelveMap(playerPos, targets.Where(x => x.Kind.Category == DelveCategory.Wall).ToList(), walls, settings);
-            }
-            else
-            {
-                DrawDelveMap(playerPos, targets, walls, settings);
-            }
+
+            // Always the full list: what a wall is worth is read off the sealed chests around it, so
+            // handing this only the walls left every verdict as "nothing found".
+            DrawDelveMap(playerPos, targets, walls, settings, settings.GroupIntoRooms.Value);
         }
 
         DrawDelveList(targets, walls, settings);
@@ -769,30 +766,30 @@ public partial class DeepwaterEngagementSuiteGGRN
         }
     }
 
-    private void DrawDelveMap(Vector2 playerPos, List<DelveTarget> targets, List<DelveTarget> walls, DelveSettings settings)
+    private void DrawDelveMap(Vector2 playerPos, List<DelveTarget> targets, List<DelveTarget> walls, DelveSettings settings, bool wallsOnly = false)
     {
         foreach (var target in targets)
         {
+            if (wallsOnly && target.Kind.Category != DelveCategory.Wall)
+                continue;
+
             var screen = Graphics.GridToMap(target.GridPos, playerPos);
             var color = target.Kind.Color;
 
             if (target.Kind.Category == DelveCategory.Wall)
             {
-                var (tier, what) = DelveWallVerdict(target, targets, settings.Walls.ContentsRadius.Value);
+                var (tier, _) = DelveWallVerdict(target, targets, settings.Walls.ContentsRadius.Value);
+
+                // Drawn or not drawn, and nothing in between. A wall that is not worth the dynamite
+                // is not worth a label saying so - the answer to "do I stop here" is the absence of
+                // a mark. Walls the game itself hides stay marked whatever is behind them, because
+                // there the passage is the reward rather than the chest.
                 if (tier < settings.Walls.MinimumTier.Value && !target.IconHidden)
                     continue;
 
-                // The verdict first and the reason after it: in front of a wall the question is
-                // whether to stop, not what is back there.
-                var label = what == null
-                    ? (target.IconHidden ? "SECRET WALL - ?" : "WALL - ?")
-                    : $"{DelveWallWord(tier)} - {what}";
-
-                if (target.IconHidden)
-                    label = "SECRET " + label;
-
-                Graphics.DrawTextWithBackground(
-                    label, screen, DelveWallColor(tier), FontAlign.Center, Color.Black);
+                var wallColor = target.IconHidden ? Color.Lime : DelveWallColor(tier);
+                Graphics.DrawFrame(
+                    new RectangleF(screen.X - 13, screen.Y - 13, 26, 26), wallColor, 3);
                 continue;
             }
 
