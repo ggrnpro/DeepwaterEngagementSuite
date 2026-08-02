@@ -5,6 +5,7 @@ using ExileCore;
 using ExileCore.PoEMemory;
 using ExileCore.PoEMemory.Components;
 using ExileCore.PoEMemory.MemoryObjects;
+using ExileCore.Shared.Enums;
 using Vector2 = System.Numerics.Vector2;
 
 namespace DeepwaterEngagementSuiteGGRN;
@@ -21,6 +22,30 @@ public partial class DeepwaterEngagementSuiteGGRN
 {
     /// <summary>How deep to walk the interface tree. Deeper finds more but the file grows fast.</summary>
     private const int UiDumpDepth = 6;
+
+    /// <summary>
+    /// How far to look for objects. The guide only cares about what is close enough to walk to, but
+    /// a census wants the whole room — a Delve wall is worth knowing about well before it is in reach.
+    /// </summary>
+    private const float DumpRadius = 300f;
+
+    /// <summary>Ceiling on the object list so a busy area cannot produce an unreadable file.</summary>
+    private const int DumpObjectLimit = 400;
+
+    /// <summary>
+    /// Entity kinds that are pure noise in a census: they appear in the hundreds, change every frame
+    /// and never carry a decision. Everything else is dumped, because which kind a thing lands in is
+    /// exactly what the census is trying to establish.
+    /// </summary>
+    private static readonly EntityType[] DumpIgnoredTypes =
+    [
+        EntityType.Effect,
+        EntityType.Light,
+        EntityType.Daemon,
+        EntityType.Player,
+        EntityType.Pet,
+        EntityType.HideoutDecoration,
+    ];
 
     private void DumpAreaSnapshot()
     {
@@ -48,38 +73,104 @@ public partial class DeepwaterEngagementSuiteGGRN
         }
     }
 
+    /// <summary>
+    /// Every object around the player, whatever kind the game filed it under.
+    ///
+    /// This used to reuse the guide's candidate list, which only asks for chests, terrain and ingame
+    /// icons because that is all a voyage objective can be. Other content files things elsewhere —
+    /// a Delve wall is a TriggerableBlockage, not terrain — so anything the guide does not already
+    /// look for was invisible in the very dump meant to discover it.
+    /// </summary>
     private List<object> NearbyObjectDump()
     {
-        var result = new List<object>();
-        foreach (var entity in CandidateEntities())
+        var result = new List<(float Distance, object Record)>();
+        var seen = new HashSet<uint>();
+
+        foreach (var type in Enum.GetValues<EntityType>())
         {
+            if (DumpIgnoredTypes.Contains(type) || result.Count >= DumpObjectLimit)
+                continue;
+
+            List<Entity> entities;
             try
             {
-                var distance = Vector2.Distance(_playerGridPos, entity.GridPosNum);
-                if (distance > 150)
-                    continue;
-
-                result.Add(new
-                {
-                    path = entity.Path,
-                    distance = Math.Round(distance, 1),
-                    entity.IsOpened,
-                    entity.IsTargetable,
-                    kind = GetChestType(entity.Path).ToString(),
-                    mods = entity.GetComponent<ObjectMagicProperties>()?.Mods,
-                    rarity = entity.GetComponent<ObjectMagicProperties>()?.Rarity.ToString(),
-                    states = entity.TryGetComponent(out StateMachine machine)
-                        ? machine.States.Select(x => $"{x.Name}={x.Value}").ToList()
-                        : null,
-                });
+                entities = GameController.EntityListWrapper.ValidEntitiesByType[type].ToList();
             }
             catch
             {
-                // an entity can go invalid mid-walk; the rest of the dump is still useful
+                // the entity list can be mid-swap, and not every kind is populated
+                continue;
+            }
+
+            foreach (var entity in entities)
+            {
+                if (result.Count >= DumpObjectLimit)
+                    break;
+
+                try
+                {
+                    if (!seen.Add(entity.Id))
+                        continue;
+
+                    var distance = Vector2.Distance(_playerGridPos, entity.GridPosNum);
+                    if (distance > DumpRadius)
+                        continue;
+
+                    result.Add((distance, DescribeEntity(entity, type, distance)));
+                }
+                catch
+                {
+                    // an entity can go invalid mid-walk; the rest of the dump is still useful
+                }
             }
         }
 
-        return result;
+        // Nearest first, so reading the file top-down matches walking towards the objects.
+        return result.OrderBy(x => x.Distance).Select(x => x.Record).ToList();
+    }
+
+    private object DescribeEntity(Entity entity, EntityType type, float distance)
+    {
+        // Read through one at a time: a component the entity does not carry throws rather than
+        // returning null, and losing the whole record over one missing field defeats the census.
+        string renderName = null;
+        try
+        {
+            renderName = entity.GetComponent<Render>()?.Name;
+        }
+        catch
+        {
+            // not every object is rendered
+        }
+
+        object minimapIcon = null;
+        try
+        {
+            if (entity.TryGetComponent(out MinimapIcon icon))
+                minimapIcon = new { name = icon.Name, hidden = icon.IsHide, visible = icon.IsVisible };
+        }
+        catch
+        {
+            // the icon component is optional and its strings are not always readable
+        }
+
+        return new
+        {
+            type = type.ToString(),
+            path = entity.Path,
+            renderName,
+            distance = Math.Round(distance, 1),
+            entity.IsOpened,
+            entity.IsTargetable,
+            league = entity.League.ToString(),
+            minimapIcon,
+            kind = GetChestType(entity.Path).ToString(),
+            mods = entity.GetComponent<ObjectMagicProperties>()?.Mods,
+            rarity = entity.GetComponent<ObjectMagicProperties>()?.Rarity.ToString(),
+            states = entity.TryGetComponent(out StateMachine machine)
+                ? machine.States.Select(x => $"{x.Name}={x.Value}").ToList()
+                : null,
+        };
     }
 
     /// <summary>Visible interface elements carrying text, which is what identifies a panel.</summary>
