@@ -48,6 +48,11 @@ public class DelveWallSettings
     [Menu("Mark walls that can be blown open")]
     public ToggleNode Enabled { get; set; } = new ToggleNode(true);
 
+    [Menu("Include walls the game has not revealed yet",
+        "The mine hides some walls until you are almost touching them, so a passage that exists reads " +
+        "as a dead end. These are the ones that save the most walking.")]
+    public ToggleNode ShowUndiscovered { get; set; } = new ToggleNode(true);
+
     [Menu("Prompt to throw dynamite within this distance", "How close you have to be before the reminder appears.")]
     public RangeNode<int> PromptDistance { get; set; } = new RangeNode<int>(70, 10, 400);
 

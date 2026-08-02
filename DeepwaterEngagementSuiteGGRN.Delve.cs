@@ -92,7 +92,17 @@ public partial class DeepwaterEngagementSuiteGGRN
         DelveKind Kind,
         int Amount,
         string Label,
-        double Score);
+        double Score)
+    {
+        /// <summary>
+        /// The game is holding this object's own map icon back.
+        ///
+        /// For a wall that is the whole point: the mine seals some passages behind walls it does not
+        /// draw until you are almost touching them, which is why a route that exists reads as a dead
+        /// end. Those are the ones worth being told about from across the room.
+        /// </summary>
+        public bool IconHidden { get; init; }
+    }
 
     /// <summary>
     /// The mine names itself "Azurite Mine" and appends the monster level, so the name is matched by
@@ -429,6 +439,26 @@ public partial class DeepwaterEngagementSuiteGGRN
                         continue;
                     }
 
+                    // A wall the game has not drawn yet is a passage you would walk past. Reading the
+                    // icon's own hidden flag is what turns those from invisible into the first thing
+                    // on the list; MinimapIcons force-shows this same icon for the same reason.
+                    var iconHidden = false;
+                    if (kind.Category == DelveCategory.Wall)
+                    {
+                        try
+                        {
+                            if (entity.TryGetComponent(out MinimapIcon icon))
+                                iconHidden = icon.IsHide;
+                        }
+                        catch
+                        {
+                            // the icon component is optional and not always readable
+                        }
+
+                        if (iconHidden && !settings.Walls.ShowUndiscovered.Value)
+                            continue;
+                    }
+
                     var value = kind.Category == DelveCategory.Wall ? 0 : DelveBaseValue(kind, amount);
 
                     results.Add(new DelveTarget(
@@ -438,7 +468,7 @@ public partial class DeepwaterEngagementSuiteGGRN
                         kind,
                         amount,
                         DelveLabel(kind, amount, renderName),
-                        value / Math.Max(30f, distance)));
+                        value / Math.Max(30f, distance)) { IconHidden = iconHidden });
                 }
                 catch
                 {
@@ -508,11 +538,22 @@ public partial class DeepwaterEngagementSuiteGGRN
             var screen = Graphics.GridToMap(target.GridPos, playerPos);
             var color = target.Kind.Color;
 
-            var label = target.Kind.Category == DelveCategory.Wall
-                ? DelveWallContents(target, targets, settings.Walls.ContentsRadius.Value) is { } contents
-                    ? $"WALL -> {contents}"
-                    : "WALL"
-                : target.Label;
+            string label;
+            if (target.Kind.Category == DelveCategory.Wall)
+            {
+                var contents = DelveWallContents(target, targets, settings.Walls.ContentsRadius.Value);
+                var head = target.IconHidden ? "SECRET WALL" : "WALL";
+                label = contents == null ? head : $"{head} -> {contents}";
+
+                // An undiscovered wall is the one the map is lying about, so it does not get to look
+                // like the walls the game already drew.
+                if (target.IconHidden)
+                    color = Color.Lime;
+            }
+            else
+            {
+                label = target.Label;
+            }
 
             Graphics.DrawTextWithBackground(label, screen, color, FontAlign.Center, Color.Black);
         }
@@ -560,13 +601,16 @@ public partial class DeepwaterEngagementSuiteGGRN
             ImGui.EndTable();
         }
 
-        foreach (var wall in walls.OrderBy(x => x.Distance))
+        // Undiscovered walls first: they are the ones that change where you would have walked.
+        foreach (var wall in walls.OrderByDescending(x => x.IconHidden).ThenBy(x => x.Distance))
         {
             var contents = DelveWallContents(wall, targets, settings.Walls.ContentsRadius.Value);
-            ImGui.TextColored(Color.Magenta.ToImguiVec4(),
+            var head = wall.IconHidden ? "SECRET wall" : "wall";
+            ImGui.TextColored(
+                (wall.IconHidden ? Color.Lime : Color.Magenta).ToImguiVec4(),
                 contents == null
-                    ? $"wall  {wall.Distance:F0}"
-                    : $"wall -> {contents}   {wall.Distance:F0}");
+                    ? $"{head}  {wall.Distance:F0}"
+                    : $"{head} -> {contents}   {wall.Distance:F0}");
         }
 
         ImGui.SetWindowFontScale(1f);
@@ -587,12 +631,16 @@ public partial class DeepwaterEngagementSuiteGGRN
             return;
 
         var contents = DelveWallContents(nearest, all, settings.Walls.ContentsRadius.Value);
-        if (contents == null && settings.Walls.OnlyWhenLootBehind.Value)
+
+        // A wall the game has not drawn is worth a prompt whether or not its contents can be worked
+        // out: the passage itself is the reward.
+        if (contents == null && settings.Walls.OnlyWhenLootBehind.Value && !nearest.IconHidden)
             return;
 
+        var head = nearest.IconHidden ? "DYNAMITE - SECRET PASSAGE" : "DYNAMITE";
         var text = contents == null
-            ? $"DYNAMITE  {nearest.Distance:F0}"
-            : $"DYNAMITE -> {contents}  {nearest.Distance:F0}";
+            ? $"{head}  {nearest.Distance:F0}"
+            : $"{head} -> {contents}  {nearest.Distance:F0}";
 
         using (Graphics.SetTextScale(settings.FontScale.Value * 1.3f))
         {
@@ -600,7 +648,7 @@ public partial class DeepwaterEngagementSuiteGGRN
             Graphics.DrawTextWithBackground(
                 text,
                 new System.Numerics.Vector2(width / 2f, 190),
-                Color.Magenta,
+                nearest.IconHidden ? Color.Lime : Color.Magenta,
                 FontAlign.Center,
                 Color.Black);
         }
