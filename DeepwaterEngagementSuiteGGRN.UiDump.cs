@@ -29,8 +29,12 @@ public partial class DeepwaterEngagementSuiteGGRN
     /// </summary>
     private const float DumpRadius = 300f;
 
-    /// <summary>Ceiling on the object list so a busy area cannot produce an unreadable file.</summary>
-    private const int DumpObjectLimit = 400;
+    /// <summary>
+    /// Ceiling on the detailed object list so a busy area cannot produce an unreadable file. It is
+    /// applied after sorting by distance, never during collection: filling it in enumeration order
+    /// meant a mine's projectiles and monsters used it up before the walk ever reached the chests.
+    /// </summary>
+    private const int DumpObjectLimit = 600;
 
     /// <summary>
     /// Entity kinds that are pure noise in a census: they appear in the hundreds, change every frame
@@ -45,6 +49,17 @@ public partial class DeepwaterEngagementSuiteGGRN
         EntityType.Player,
         EntityType.Pet,
         EntityType.HideoutDecoration,
+        EntityType.Monster,
+    ];
+
+    /// <summary>
+    /// Paths that are noise regardless of the kind the game filed them under. Projectiles arrive as
+    /// EntityType.None, which is also where anything the core does not recognise lands — so they are
+    /// dropped by path rather than by kind, or an unrecognised object would be dropped with them.
+    /// </summary>
+    private static readonly string[] DumpIgnoredPathPrefixes =
+    [
+        "Metadata/Projectiles/",
     ];
 
     private void DumpAreaSnapshot()
@@ -61,13 +76,16 @@ public partial class DeepwaterEngagementSuiteGGRN
             // the area measures as too far away — the snapshot came back empty in a mine full of
             // chests.
             var playerPos = PlayerGridPos();
+            var census = new Dictionary<string, int>(StringComparer.Ordinal);
+            var nearby = NearbyObjectDump(playerPos, census);
 
             var payload = new
             {
                 area = GameController.Area?.CurrentArea?.DisplayName ?? _currentAreaName,
                 player = new { x = playerPos.X, y = playerPos.Y },
                 guideCandidates = _lastCandidateCount,
-                nearbyObjects = NearbyObjectDump(playerPos),
+                objectCensus = census.OrderByDescending(x => x.Value).ToDictionary(x => x.Key, x => x.Value),
+                nearbyObjects = nearby,
                 visibleUi = VisibleUiDump(),
             };
 
@@ -80,14 +98,6 @@ public partial class DeepwaterEngagementSuiteGGRN
         }
     }
 
-    /// <summary>
-    /// Every object around the player, whatever kind the game filed it under.
-    ///
-    /// This used to reuse the guide's candidate list, which only asks for chests, terrain and ingame
-    /// icons because that is all a voyage objective can be. Other content files things elsewhere —
-    /// a Delve wall is a TriggerableBlockage, not terrain — so anything the guide does not already
-    /// look for was invisible in the very dump meant to discover it.
-    /// </summary>
     /// <summary>The player's grid position right now, whatever area this is.</summary>
     private Vector2 PlayerGridPos()
     {
@@ -105,14 +115,22 @@ public partial class DeepwaterEngagementSuiteGGRN
         return _playerGridPos;
     }
 
-    private List<object> NearbyObjectDump(Vector2 playerPos)
+    /// <summary>
+    /// Every object around the player, whatever kind the game filed it under.
+    ///
+    /// This used to reuse the guide's candidate list, which only asks for chests, terrain and ingame
+    /// icons because that is all a voyage objective can be. Other content files things elsewhere —
+    /// a Delve wall is a TriggerableBlockage, not terrain — so anything the guide does not already
+    /// look for was invisible in the very dump meant to discover it.
+    /// </summary>
+    private List<object> NearbyObjectDump(Vector2 playerPos, IDictionary<string, int> census)
     {
         var result = new List<(float Distance, object Record)>();
         var seen = new HashSet<uint>();
 
         foreach (var type in Enum.GetValues<EntityType>())
         {
-            if (DumpIgnoredTypes.Contains(type) || result.Count >= DumpObjectLimit)
+            if (DumpIgnoredTypes.Contains(type))
                 continue;
 
             List<Entity> entities;
@@ -128,17 +146,23 @@ public partial class DeepwaterEngagementSuiteGGRN
 
             foreach (var entity in entities)
             {
-                if (result.Count >= DumpObjectLimit)
-                    break;
-
                 try
                 {
                     if (!seen.Add(entity.Id))
                         continue;
 
+                    var path = entity.Path ?? "";
+                    if (DumpIgnoredPathPrefixes.Any(p => path.StartsWith(p, StringComparison.Ordinal)))
+                        continue;
+
                     var distance = Vector2.Distance(playerPos, entity.GridPosNum);
                     if (distance > DumpRadius)
                         continue;
+
+                    // The census is never truncated, so a rare object still shows up as a line here
+                    // even when the detailed list is full of whatever happened to be closer.
+                    var key = $"{type}|{path}";
+                    census[key] = census.TryGetValue(key, out var already) ? already + 1 : 1;
 
                     result.Add((distance, DescribeEntity(entity, type, distance)));
                 }
@@ -149,8 +173,9 @@ public partial class DeepwaterEngagementSuiteGGRN
             }
         }
 
-        // Nearest first, so reading the file top-down matches walking towards the objects.
-        return result.OrderBy(x => x.Distance).Select(x => x.Record).ToList();
+        // Nearest first, so reading the file top-down matches walking towards the objects, and the
+        // ceiling keeps the closest rather than whichever kind the enum happened to list first.
+        return result.OrderBy(x => x.Distance).Take(DumpObjectLimit).Select(x => x.Record).ToList();
     }
 
     private object DescribeEntity(Entity entity, EntityType type, float distance)
