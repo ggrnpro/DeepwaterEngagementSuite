@@ -556,6 +556,53 @@ public partial class DeepwaterEngagementSuiteGGRN
         return results;
     }
 
+
+    /// <summary>
+    /// Whether a wall is worth a stick of dynamite, and why.
+    ///
+    /// The mine files a wall and the chest it seals as unrelated objects, but a sealed chest only
+    /// ever sits just past its own wall, so proximity recovers the link. The verdict is then the best
+    /// thing behind it - one word, because standing in front of a wall the question is not what is
+    /// back there, it is whether to stop.
+    ///
+    /// Nothing found is reported as nothing found rather than as "not worth it". The mine does place
+    /// walls with nothing behind them, but a chest can also be out of range or not yet loaded, and
+    /// telling those apart matters more than sounding certain.
+    /// </summary>
+    private static (int Tier, string What) DelveWallVerdict(DelveTarget wall, List<DelveTarget> all, float radius)
+    {
+        var behind = all
+            .Where(x => x.Kind.BehindWall && Vector2.Distance(x.GridPos, wall.GridPos) <= radius)
+            .ToList();
+
+        if (behind.Count == 0)
+            return (0, null);
+
+        var best = behind.OrderByDescending(x => x.Tier).ThenByDescending(x => x.Kind.Category).First();
+        var names = behind
+            .OrderByDescending(x => x.Tier)
+            .Select(x => DelveLabel(x.Kind, x.Amount).Replace("[wall] ", ""))
+            .Distinct()
+            .Take(2);
+
+        return (best.Tier, string.Join(", ", names));
+    }
+
+    /// <summary>
+    /// The one word that answers "do I stop here". Two outcomes, because there are two: you either
+    /// spend the dynamite and the time or you keep walking, and a middle grade would only be a
+    /// decision handed back.
+    /// </summary>
+    private static string DelveWallWord(int tier) => tier >= 2 ? "GO" : "skip";
+
+    private static Color DelveWallColor(int tier) => tier switch
+    {
+        3 => Color.Magenta,
+        2 => Color.Gold,
+        1 => Color.Silver,
+        _ => Color.DimGray,
+    };
+
     /// <summary>
     /// Names what a wall is hiding, by looking for sealed chests close to it.
     ///
@@ -633,14 +680,21 @@ public partial class DeepwaterEngagementSuiteGGRN
 
             if (target.Kind.Category == DelveCategory.Wall)
             {
-                var contents = DelveWallContents(target, targets, settings.Walls.ContentsRadius.Value);
-                var head = target.IconHidden ? "SECRET WALL" : "WALL";
-                var label = contents == null ? head : $"{head} -> {contents}";
+                var (tier, what) = DelveWallVerdict(target, targets, settings.Walls.ContentsRadius.Value);
+                if (tier < settings.Walls.MinimumTier.Value && !target.IconHidden)
+                    continue;
 
-                // Nothing else writes these, so a wall keeps its words. An undiscovered one does not
-                // get to look like the walls the game already drew.
+                // The verdict first and the reason after it: in front of a wall the question is
+                // whether to stop, not what is back there.
+                var label = what == null
+                    ? (target.IconHidden ? "SECRET WALL - ?" : "WALL - ?")
+                    : $"{DelveWallWord(tier)} - {what}";
+
+                if (target.IconHidden)
+                    label = "SECRET " + label;
+
                 Graphics.DrawTextWithBackground(
-                    label, screen, target.IconHidden ? Color.Lime : color, FontAlign.Center, Color.Black);
+                    label, screen, DelveWallColor(tier), FontAlign.Center, Color.Black);
                 continue;
             }
 
@@ -700,13 +754,16 @@ public partial class DeepwaterEngagementSuiteGGRN
         // Undiscovered walls first: they are the ones that change where you would have walked.
         foreach (var wall in walls.OrderByDescending(x => x.IconHidden).ThenBy(x => x.Distance))
         {
-            var contents = DelveWallContents(wall, targets, settings.Walls.ContentsRadius.Value);
-            var head = wall.IconHidden ? "SECRET wall" : "wall";
+            var (tier, what) = DelveWallVerdict(wall, targets, settings.Walls.ContentsRadius.Value);
+            if (tier < settings.Walls.MinimumTier.Value && !wall.IconHidden)
+                continue;
+
+            var head = wall.IconHidden ? "SECRET " : "";
             ImGui.TextColored(
-                (wall.IconHidden ? Color.Lime : Color.Magenta).ToImguiVec4(),
-                contents == null
-                    ? $"{head}  {wall.Distance:F0}"
-                    : $"{head} -> {contents}   {wall.Distance:F0}");
+                DelveWallColor(tier).ToImguiVec4(),
+                what == null
+                    ? $"{head}wall - ?   {wall.Distance:F0}"
+                    : $"{head}{DelveWallWord(tier)} - {what}   {wall.Distance:F0}");
         }
 
         ImGui.SetWindowFontScale(1f);
@@ -726,17 +783,19 @@ public partial class DeepwaterEngagementSuiteGGRN
         if (nearest.Distance > settings.Walls.PromptDistance.Value)
             return;
 
-        var contents = DelveWallContents(nearest, all, settings.Walls.ContentsRadius.Value);
+        var (tier, what) = DelveWallVerdict(nearest, all, settings.Walls.ContentsRadius.Value);
 
         // A wall the game has not drawn is worth a prompt whether or not its contents can be worked
         // out: the passage itself is the reward.
-        if (contents == null && settings.Walls.OnlyWhenLootBehind.Value && !nearest.IconHidden)
+        if (what == null && settings.Walls.OnlyWhenLootBehind.Value && !nearest.IconHidden)
             return;
 
-        var head = nearest.IconHidden ? "DYNAMITE - SECRET PASSAGE" : "DYNAMITE";
-        var text = contents == null
-            ? $"{head}  {nearest.Distance:F0}"
-            : $"{head} -> {contents}  {nearest.Distance:F0}";
+        var text = what == null
+            ? (nearest.IconHidden ? "SECRET PASSAGE - unknown" : "WALL - nothing found")
+            : $"{DelveWallWord(tier)}  {what}";
+
+        if (nearest.IconHidden && what != null)
+            text = "SECRET  " + text;
 
         using (Graphics.SetTextScale(settings.FontScale.Value * 1.3f))
         {
@@ -744,7 +803,7 @@ public partial class DeepwaterEngagementSuiteGGRN
             Graphics.DrawTextWithBackground(
                 text,
                 new System.Numerics.Vector2(width / 2f, 190),
-                nearest.IconHidden ? Color.Lime : Color.Magenta,
+                nearest.IconHidden ? Color.Lime : DelveWallColor(tier),
                 FontAlign.Center,
                 Color.Black);
         }

@@ -79,6 +79,11 @@ public class DelveWallSettings
         "as a dead end. These are the ones that save the most walking.")]
     public ToggleNode ShowUndiscovered { get; set; } = new ToggleNode(true);
 
+    [Menu("Only mark walls whose contents are worth at least this much",
+        "0 marks every wall including the ones nothing was found behind. 2 leaves the ones worth the " +
+        "dynamite. Walls the game has not revealed are always marked - the passage is the reward there.")]
+    public RangeNode<int> MinimumTier { get; set; } = new RangeNode<int>(0, 0, 3);
+
     [Menu("Prompt to throw dynamite within this distance", "How close you have to be before the reminder appears.")]
     public RangeNode<int> PromptDistance { get; set; } = new RangeNode<int>(70, 10, 400);
 
