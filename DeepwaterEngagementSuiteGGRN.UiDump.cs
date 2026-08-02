@@ -55,12 +55,19 @@ public partial class DeepwaterEngagementSuiteGGRN
 
         try
         {
+            // Read the player's own position rather than the one the voyage tick caches. That tick
+            // returns on its first line when the Deepwater handler is missing, so outside league
+            // content the cached position never moves off its starting value and every object in
+            // the area measures as too far away — the snapshot came back empty in a mine full of
+            // chests.
+            var playerPos = PlayerGridPos();
+
             var payload = new
             {
-                area = _currentAreaName,
-                player = new { x = _playerGridPos.X, y = _playerGridPos.Y },
+                area = GameController.Area?.CurrentArea?.DisplayName ?? _currentAreaName,
+                player = new { x = playerPos.X, y = playerPos.Y },
                 guideCandidates = _lastCandidateCount,
-                nearbyObjects = NearbyObjectDump(),
+                nearbyObjects = NearbyObjectDump(playerPos),
                 visibleUi = VisibleUiDump(),
             };
 
@@ -81,7 +88,24 @@ public partial class DeepwaterEngagementSuiteGGRN
     /// a Delve wall is a TriggerableBlockage, not terrain — so anything the guide does not already
     /// look for was invisible in the very dump meant to discover it.
     /// </summary>
-    private List<object> NearbyObjectDump()
+    /// <summary>The player's grid position right now, whatever area this is.</summary>
+    private Vector2 PlayerGridPos()
+    {
+        try
+        {
+            // Same measure the objects are reported in, so the distances line up by construction.
+            if (GameController.Player is { } player)
+                return player.GridPosNum;
+        }
+        catch
+        {
+            // the player entity is not readable during a load
+        }
+
+        return _playerGridPos;
+    }
+
+    private List<object> NearbyObjectDump(Vector2 playerPos)
     {
         var result = new List<(float Distance, object Record)>();
         var seen = new HashSet<uint>();
@@ -112,7 +136,7 @@ public partial class DeepwaterEngagementSuiteGGRN
                     if (!seen.Add(entity.Id))
                         continue;
 
-                    var distance = Vector2.Distance(_playerGridPos, entity.GridPosNum);
+                    var distance = Vector2.Distance(playerPos, entity.GridPosNum);
                     if (distance > DumpRadius)
                         continue;
 
