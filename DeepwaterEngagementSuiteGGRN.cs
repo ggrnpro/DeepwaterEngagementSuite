@@ -167,6 +167,7 @@ public partial class DeepwaterEngagementSuiteGGRN : BaseSettingsPlugin<Deepwater
         _editedPathEval = null;
         _cachedEntities.Clear();
         ResetAutoPickup();
+        _delveNameCache.Clear();
         ResetGuide();
         ResetTrailTracking();
         _zoneCleared = false;
@@ -499,6 +500,9 @@ public partial class DeepwaterEngagementSuiteGGRN : BaseSettingsPlugin<Deepwater
         // Loot does not care whether this is a voyage, so the picker runs before anything that bails
         // out when the Deepwater handler is missing.
         RunAutoPickup();
+
+        // The mine is not a voyage either, so this runs before the same bail-out.
+        DrawDelveOverlay();
 
         DrawVoyageHighlights();
         TrackVoyageRun();

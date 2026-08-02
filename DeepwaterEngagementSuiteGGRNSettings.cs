@@ -57,6 +57,7 @@ public class DeepwaterEngagementSuiteSettings : ISettings
 
     public CurrencyReminderSettings CurrencyReminderSettings { get; set; } = new CurrencyReminderSettings();
     public BubbleSettings BubbleSettings { get; set; } = new BubbleSettings();
+    public DelveSettings DelveSettings { get; set; } = new DelveSettings();
     public TrailSettings TrailSettings { get; set; } = new TrailSettings();
 
     [Menu("Bubble planner settings")]
