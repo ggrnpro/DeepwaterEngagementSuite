@@ -148,7 +148,7 @@ public partial class DeepwaterEngagementSuiteGGRN
             return new DelveKind(DelveCategory.AzuriteShard, false, false, false, 1);
 
         if (!path.StartsWith(DelveChestPrefix, StringComparison.Ordinal))
-            return new DelveKind(DelveCategory.Unknown, false, false, false, 0);
+            return ClassifyOrdinaryChest(path);
 
         var tail = path[DelveChestPrefix.Length..];
         var offPath = tail.StartsWith("OffPath", StringComparison.Ordinal);
@@ -215,6 +215,51 @@ public partial class DeepwaterEngagementSuiteGGRN
         return new DelveKind(category, offPath, behindWall, empty, tier);
     }
 
+
+
+    /// <summary>
+    /// A chest outside the mine, read the same way.
+    ///
+    /// Every league names its chests after what they hold, so the words that decide a mine chest
+    /// decide a dungeon chest too - which means a side area is worth walking into or it is not
+    /// before the walk, without a table per league.
+    /// </summary>
+    private static DelveKind ClassifyOrdinaryChest(string path)
+    {
+        if (!path.StartsWith("Metadata/Chests/", StringComparison.Ordinal))
+            return new DelveKind(DelveCategory.Unknown, false, false, false, 0);
+
+        var tail = path["Metadata/Chests/".Length..];
+
+        var tier = 0;
+        for (var i = tail.Length - 1; i >= 0 && char.IsDigit(tail[i]); i--)
+            tier = tail[i] - '0';
+
+        var category = DelveCategory.Unknown;
+        if (tail.Contains("Resonator", StringComparison.OrdinalIgnoreCase))
+            category = DelveCategory.Resonator;
+        else if (tail.Contains("Fossil", StringComparison.OrdinalIgnoreCase))
+            category = DelveCategory.Fossil;
+        else if (tail.Contains("Divination", StringComparison.OrdinalIgnoreCase))
+            category = DelveCategory.Divination;
+        else if (tail.Contains("Currency", StringComparison.OrdinalIgnoreCase))
+            category = DelveCategory.Currency;
+        else if (tail.Contains("StrongBoxes", StringComparison.OrdinalIgnoreCase))
+            category = DelveCategory.Special;
+        else if (tail.Contains("Unique", StringComparison.OrdinalIgnoreCase))
+            category = DelveCategory.Special;
+        else if (tail.Contains("Essence", StringComparison.OrdinalIgnoreCase))
+            category = DelveCategory.Divination;
+        else if (tail.Contains("Trinket", StringComparison.OrdinalIgnoreCase))
+            category = DelveCategory.Trinkets;
+        else if (tail.Contains("Gem", StringComparison.OrdinalIgnoreCase))
+            category = DelveCategory.Gem;
+        else if (tail.Contains("Map", StringComparison.OrdinalIgnoreCase))
+            category = DelveCategory.Map;
+
+        // Everything else is a barrel, a vase or a crate. Naming them would be listing scenery.
+        return new DelveKind(category, false, false, false, tier);
+    }
 
     /// <summary>
     /// Grades a fossil chest from the fossil named in its path. Unknown types land in the middle
@@ -535,8 +580,17 @@ public partial class DeepwaterEngagementSuiteGGRN
     private void DrawDelveOverlay()
     {
         var settings = Settings.DelveSettings;
-        if (!settings.Enabled.Value || !InAzuriteMine())
+        if (!settings.Enabled.Value)
             return;
+
+        if (!InAzuriteMine())
+        {
+            // Outside the mine this is a second opinion, not the main one. Where the voyage guide is
+            // already ranking the same objects with a profile built for them, two panels disagreeing
+            // about the same chest is worse than one.
+            if (!settings.Everywhere.Value || Handler != null)
+                return;
+        }
 
         // The chart is a full-screen panel over the same area, and the overlay's own labels were
         // being painted on top of it - a chest called "Generic" behind the panel read as a node type
@@ -577,24 +631,27 @@ public partial class DeepwaterEngagementSuiteGGRN
             var screen = Graphics.GridToMap(target.GridPos, playerPos);
             var color = target.Kind.Color;
 
-            string label;
             if (target.Kind.Category == DelveCategory.Wall)
             {
                 var contents = DelveWallContents(target, targets, settings.Walls.ContentsRadius.Value);
                 var head = target.IconHidden ? "SECRET WALL" : "WALL";
-                label = contents == null ? head : $"{head} -> {contents}";
+                var label = contents == null ? head : $"{head} -> {contents}";
 
-                // An undiscovered wall is the one the map is lying about, so it does not get to look
-                // like the walls the game already drew.
-                if (target.IconHidden)
-                    color = Color.Lime;
-            }
-            else
-            {
-                label = target.Label;
+                // Nothing else writes these, so a wall keeps its words. An undiscovered one does not
+                // get to look like the walls the game already drew.
+                Graphics.DrawTextWithBackground(
+                    label, screen, target.IconHidden ? Color.Lime : color, FontAlign.Center, Color.Black);
+                continue;
             }
 
-            Graphics.DrawTextWithBackground(label, screen, color, FontAlign.Center, Color.Black);
+            // A mark rather than the name: MinimapIcons writes the name already, and what it cannot
+            // say is whether the thing is worth the walk. The ring is the answer to that.
+            var tierColor = DelveTierColor(target.Tier);
+            var size = 6f + 4f * target.Tier;
+            Graphics.DrawFrame(
+                new SharpDX.RectangleF(screen.X - size, screen.Y - size, size * 2, size * 2),
+                tierColor,
+                target.Tier);
         }
     }
 

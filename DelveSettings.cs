@@ -28,10 +28,15 @@ public class DelveSettings
         "the big azurite and the good fossils.")]
     public RangeNode<int> MinimumTier { get; set; } = new RangeNode<int>(2, 1, 3);
 
-    [Menu("Also label objects on the map",
-        "Off because MinimapIcons already labels them, and two plugins writing the same word over each " +
-        "other is unreadable. The panel ranks them either way.")]
-    public ToggleNode DrawMapLabels { get; set; } = new ToggleNode(false);
+    [Menu("Mark objects on the map by worth",
+        "Draws a coloured mark, not another copy of the name - MinimapIcons already writes the name, " +
+        "and two plugins writing the same word on the same spot is what made it unreadable.")]
+    public ToggleNode DrawMapLabels { get; set; } = new ToggleNode(true);
+
+    [Menu("Also rank chests outside the mine",
+        "The same worth ranking applied to any area's chests, so a side dungeon is worth entering or " +
+        "it is not before you walk down there.")]
+    public ToggleNode Everywhere { get; set; } = new ToggleNode(true);
 
     [Menu("Hide the plainest chests",
         "The generic supply chests are the mine's filler. They are worth taking if you walk past one " +
