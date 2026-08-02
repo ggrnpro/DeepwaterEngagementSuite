@@ -28,8 +28,12 @@ namespace DeepwaterEngagementSuiteGGRN;
 /// </summary>
 public partial class DeepwaterEngagementSuiteGGRN
 {
-    /// <summary>Close enough to count as having been at a wall.</summary>
-    private const float DelveWallReachedDistance = 40f;
+    /// <summary>
+    /// Close enough to count as having been at a wall. Generous on purpose: passing the turning that
+    /// leads to one is as good as having decided about it, and a line that comes back after you have
+    /// already walked on is worse than no line.
+    /// </summary>
+    private const float DelveWallReachedDistance = 55f;
 
     private const string DelveChestPrefix = "Metadata/Chests/DelveChests/";
 

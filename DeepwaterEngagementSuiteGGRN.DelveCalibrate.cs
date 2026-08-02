@@ -75,12 +75,22 @@ public partial class DeepwaterEngagementSuiteGGRN
 
             for (var offset = 0; offset < CalibrationSpan; offset += 8)
             {
-                var text = ReadTextThrough(address + offset);
-                if (text == null)
-                    continue;
+                // Three ways the name could sit here: written into the node itself, behind one
+                // pointer, or behind two. The first scan only tried the middle one and came back
+                // with nothing at all, which rules out a filter that is merely too strict.
+                Record(offset, "direct", ReadText(address + offset));
+                Record(offset, "ptr", ReadTextThrough(address + offset));
+                Record(offset, "ptr2", ReadTextThroughTwice(address + offset));
+            }
 
-                if (!hits.TryGetValue(offset, out var list))
-                    hits[offset] = list = [];
+            void Record(int offset, string via, string text)
+            {
+                if (text == null)
+                    return;
+
+                var key = offset * 4 + via switch { "direct" => 0, "ptr" => 1, _ => 2 };
+                if (!hits.TryGetValue(key, out var list))
+                    hits[key] = list = [];
 
                 if (list.Count < 8 && !list.Contains(text))
                     list.Add(text);
@@ -92,11 +102,14 @@ public partial class DeepwaterEngagementSuiteGGRN
         return hits
             .Select(x => new
             {
-                offset = $"0x{x.Key:X}",
+                offset = $"0x{x.Key / 4:X}",
+                via = (x.Key % 4) switch { 0 => "direct", 1 => "ptr", _ => "ptr2" },
                 matchesKnownNames = x.Value.Count(v => known.Contains(v)),
                 samples = x.Value,
             })
-            .Where(x => x.samples.Count > 1)
+            // One reading is worth reporting now. Requiring two threw away the only evidence there
+            // was when the first scan came back empty.
+            .Where(x => x.samples.Count > 0)
             .OrderByDescending(x => x.matchesKnownNames)
             .ThenByDescending(x => x.samples.Count)
             .Take(40)
@@ -104,29 +117,50 @@ public partial class DeepwaterEngagementSuiteGGRN
             .ToList();
     }
 
-    /// <summary>
-    /// Reads the word at <paramref name="at"/> as a pointer and returns the text it leads to, when
-    /// that text looks like a name rather than like memory being read as one.
-    /// </summary>
-    private string ReadTextThrough(long at)
+    /// <summary>Text written at the address itself.</summary>
+    private string ReadText(long at)
     {
         try
         {
-            var pointer = GameController.Memory.Read<long>(at);
-            if (pointer < 0x10000 || pointer > 0x7FFFFFFFFFFF)
-                return null;
-
-            var text = GameController.Memory.ReadStringU(pointer);
-            if (string.IsNullOrWhiteSpace(text) || text.Length is < 3 or > 48)
-                return null;
-
-            // A real name is words. Anything with a control character or a symbol outside plain
-            // punctuation is memory that happens to decode.
-            return text.All(c => c is >= ' ' and <= '~') && text.Any(char.IsLetter) ? text : null;
+            return Sane(GameController.Memory.ReadStringU(at));
         }
         catch
         {
             return null;
         }
+    }
+
+    /// <summary>Text behind the pointer stored at the address.</summary>
+    private string ReadTextThrough(long at) => ReadText(Dereference(at));
+
+    /// <summary>Text two pointers along, for a name held in a wrapper rather than inline.</summary>
+    private string ReadTextThroughTwice(long at) => ReadText(Dereference(Dereference(at)));
+
+    private long Dereference(long at)
+    {
+        if (at == 0)
+            return 0;
+
+        try
+        {
+            var pointer = GameController.Memory.Read<long>(at);
+            return pointer is < 0x10000 or > 0x7FFFFFFFFFFF ? 0 : pointer;
+        }
+        catch
+        {
+            return 0;
+        }
+    }
+
+    /// <summary>
+    /// Whether this reads like a name rather than like memory that happens to decode. A real name is
+    /// words: printable, and containing letters.
+    /// </summary>
+    private static string Sane(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text) || text.Length is < 3 or > 48)
+            return null;
+
+        return text.All(c => c is >= ' ' and <= '~') && text.Any(char.IsLetter) ? text : null;
     }
 }
