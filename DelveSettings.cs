@@ -22,6 +22,11 @@ public class DelveSettings
     [Menu("Hide chests that drop nothing", "The mine spawns decoy chests whose own name says NoDrops.")]
     public ToggleNode HideEmpty { get; set; } = new ToggleNode(true);
 
+    [Menu("Export the mine's own database",
+        "Writes every biome, room feature and league modifier the game ships to a snapshot file, so " +
+        "node ranking is built on the installed patch rather than on a community page.")]
+    public ButtonNode ExportCatalogue { get; set; } = new ButtonNode();
+
     public DelveAzuriteSettings Azurite { get; set; } = new DelveAzuriteSettings();
     public DelveWallSettings Walls { get; set; } = new DelveWallSettings();
 }

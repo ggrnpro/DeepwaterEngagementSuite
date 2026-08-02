@@ -101,6 +101,7 @@ public partial class DeepwaterEngagementSuiteGGRN : BaseSettingsPlugin<Deepwater
         Settings.VoyageSettings.ProfileRenameNode.DrawDelegate = DrawProfileRenameNode;
         SeedAreaValues();
         Settings.VoyageSettings.ExportModCatalogue.OnPressed += ExportModCatalogue;
+        Settings.DelveSettings.ExportCatalogue.OnPressed += ExportDelveCatalogue;
         RegisterHotkey(Settings.PlannerSettings.StartSearchHotkey);
         RegisterHotkey(Settings.PlannerSettings.StopSearchHotkey);
         RegisterHotkey(Settings.PlannerSettings.ClearSearchHotkey);
