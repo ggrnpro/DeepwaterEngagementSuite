@@ -20,74 +20,25 @@ namespace DeepwaterEngagementSuiteGGRN;
 public partial class DeepwaterEngagementSuiteGGRN
 {
     /// <summary>
-    /// Depth of the walk looking for the chart. It sits a few levels inside the interface root and
-    /// the walk stops at the first element that turns out to be one.
-    /// </summary>
-    private const int ChartSearchDepth = 8;
-
-    /// <summary>
-    /// Finds the chart by asking elements whether they are one, rather than by matching the title
-    /// text or a fixed position. Both of those move between leagues; the shape of the object does
-    /// not, and an element that yields a populated grid is the chart by construction.
+    /// The chart, from the interface's own named handle.
+    ///
+    /// Walking the tree and asking each element whether it was the chart looked reasonable and was
+    /// wrong: reinterpreting an element as another type does not fail, it just reads whatever is at
+    /// those offsets, so the walk accepted the first element whose garbage happened to look like a
+    /// grid and returned twenty-four cells that were all empty. The interface names this window, so
+    /// there is nothing to search for.
     /// </summary>
     private SubterraneanChart FindSubterraneanChart()
     {
         try
         {
-            return ProbeForChart(GameController.IngameState.UIRoot, 0);
+            var window = GameController.IngameState.IngameUi.DelveWindow;
+            return window is { IsValid: true, IsVisible: true } ? window : null;
         }
         catch
         {
             return null;
         }
-    }
-
-    private static SubterraneanChart ProbeForChart(Element element, int depth)
-    {
-        if (element == null || depth > ChartSearchDepth)
-            return null;
-
-        try
-        {
-            if (!element.IsVisible)
-                return null;
-        }
-        catch
-        {
-            return null;
-        }
-
-        try
-        {
-            var candidate = element.AsObject<SubterraneanChart>();
-            if (candidate?.GridElement?.Cells is { Count: > 0 })
-                return candidate;
-        }
-        catch
-        {
-            // casting an unrelated element is expected to fail; that is the test
-        }
-
-        IList<Element> children;
-        try
-        {
-            children = element.Children;
-        }
-        catch
-        {
-            return null;
-        }
-
-        if (children == null)
-            return null;
-
-        foreach (var child in children)
-        {
-            if (ProbeForChart(child, depth + 1) is { } found)
-                return found;
-        }
-
-        return null;
     }
 
     /// <summary>
