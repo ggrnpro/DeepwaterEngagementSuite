@@ -94,6 +94,7 @@ public enum DelveCategory
     Resonator,
     AzuriteShard,
     Azurite,
+    Special,
     Wall,
 }
 
@@ -106,6 +107,7 @@ public readonly record struct DelveKind(
 {
     public Color Color => Category switch
     {
+        DelveCategory.Special => Color.Magenta,
         DelveCategory.Azurite => Color.Cyan,
         DelveCategory.AzuriteShard => Color.LightBlue,
         DelveCategory.Resonator => Color.Orange,

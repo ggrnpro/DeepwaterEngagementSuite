@@ -166,7 +166,12 @@ public partial class DeepwaterEngagementSuiteGGRN
             tier = tail[i] - '0';
 
         var category = DelveCategory.Unknown;
-        if (tail.Contains("AzuriteVein", StringComparison.Ordinal))
+        // The chambers the mine calls "Special" are the reward rooms of a Vaal outpost or an abyssal
+        // city, and their chests name their contents the same way an ordinary chest does - so
+        // matching the contents first filed the richest chest in the mine as plain armour.
+        if (tail.Contains("DelveChestSpecial", StringComparison.Ordinal))
+            category = DelveCategory.Special;
+        else if (tail.Contains("AzuriteVein", StringComparison.Ordinal))
             category = DelveCategory.Azurite;
         else if (tail.Contains("Resonator", StringComparison.Ordinal))
             category = DelveCategory.Resonator;
@@ -263,6 +268,7 @@ public partial class DeepwaterEngagementSuiteGGRN
             // A vein's grade is the whole decision, so it drives the value directly. The amount is
             // still added when the mine happens to print one, which it does not for veins.
             DelveCategory.Azurite => 60 + 90 * Math.Max(0, kind.Tier - 1) + amount * 0.1,
+            DelveCategory.Special => 220,
             DelveCategory.AzuriteShard => 45,
             DelveCategory.Resonator => 60 + 40 * kind.Tier,
             DelveCategory.Fossil => 60 + 60 * Math.Max(0, kind.Tier),
@@ -309,6 +315,7 @@ public partial class DeepwaterEngagementSuiteGGRN
             DelveCategory.Azurite => amount > 0 ? $"Azurite {amount}" : "Azurite",
             DelveCategory.AzuriteShard => "Azurite shard",
             DelveCategory.Resonator => kind.Tier > 0 ? $"Resonator T{kind.Tier}" : "Resonator",
+            DelveCategory.Special => "SPECIAL",
             DelveCategory.Dynamite => "Dynamite",
             DelveCategory.Flares => "Flares",
             DelveCategory.Empty => "empty",

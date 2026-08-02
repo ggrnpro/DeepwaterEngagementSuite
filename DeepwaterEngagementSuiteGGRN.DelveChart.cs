@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using ExileCore.PoEMemory;
 using ExileCore.PoEMemory.Elements;
 
@@ -39,6 +40,60 @@ public partial class DeepwaterEngagementSuiteGGRN
         {
             return null;
         }
+    }
+
+    /// <summary>
+    /// The chart window's raw child tree, recorded when the typed grid comes back empty.
+    ///
+    /// The interface dump only keeps elements carrying text and a node is an icon, so the grid is
+    /// absent from it entirely — which is why an empty result looked the same as a missing panel.
+    /// The nodes are still elements with positions, so their shape gives them away: a row of equally
+    /// sized children where the typed accessor found nothing means the accessor's offset has moved,
+    /// not that the chart is empty.
+    /// </summary>
+    private static List<object> ChartSubtreeDump(Element element, int depth)
+    {
+        var result = new List<object>();
+        if (element == null || depth > 6)
+            return result;
+
+        IList<Element> children;
+        try
+        {
+            children = element.Children;
+        }
+        catch
+        {
+            return result;
+        }
+
+        if (children == null)
+            return result;
+
+        foreach (var child in children.Take(60))
+        {
+            try
+            {
+                var r = child.GetClientRectCache;
+                result.Add(new
+                {
+                    depth,
+                    childCount = child.ChildCount,
+                    x = (int)r.X,
+                    y = (int)r.Y,
+                    w = (int)r.Width,
+                    h = (int)r.Height,
+                    text = SafeText(child),
+                    children = ChartSubtreeDump(child, depth + 1),
+                });
+            }
+            catch
+            {
+                // an element can go unreadable while the panel animates
+            }
+        }
+
+        return result;
     }
 
     /// <summary>
@@ -97,6 +152,11 @@ public partial class DeepwaterEngagementSuiteGGRN
         {
             result.Add(new { error = ex.GetBaseException().Message });
         }
+
+        // An empty grid means the typed accessor missed, not that the chart has no nodes. Record the
+        // window's own children so the grid can be found by its shape instead.
+        if (result.Count == 0)
+            result.Add(new { note = "grid accessor returned nothing - raw subtree follows", subtree = ChartSubtreeDump(chart, 0) });
 
         return result;
     }
