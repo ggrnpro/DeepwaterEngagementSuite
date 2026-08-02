@@ -169,6 +169,7 @@ public partial class DeepwaterEngagementSuiteGGRN : BaseSettingsPlugin<Deepwater
         _cachedEntities.Clear();
         ResetAutoPickup();
         _delveNameCache.Clear();
+        _delveVisitedWalls.Clear();
         ResetGuide();
         ResetTrailTracking();
         _zoneCleared = false;

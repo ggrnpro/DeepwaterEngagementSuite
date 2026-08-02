@@ -28,6 +28,9 @@ namespace DeepwaterEngagementSuiteGGRN;
 /// </summary>
 public partial class DeepwaterEngagementSuiteGGRN
 {
+    /// <summary>Close enough to count as having been at a wall.</summary>
+    private const float DelveWallReachedDistance = 40f;
+
     private const string DelveChestPrefix = "Metadata/Chests/DelveChests/";
 
     /// <summary>Matched loosely: the wall's own path has moved between leagues, its place in it has not.</summary>
@@ -50,6 +53,16 @@ public partial class DeepwaterEngagementSuiteGGRN
 
     /// <summary>Set when a name is seen for the first time; the next snapshot carries the list.</summary>
     private bool _delveNamesDirty;
+
+    /// <summary>
+    /// Walls already walked up to.
+    ///
+    /// A wall has no opened state to read, and a hidden one keeps its hidden flag after it is blown,
+    /// so nothing about the wall itself ever says "done with this". Standing next to it does: the
+    /// line kept pointing back at a wall whose chests were all emptied because the only thing it was
+    /// checking was that the game still called the wall hidden.
+    /// </summary>
+    private readonly HashSet<uint> _delveVisitedWalls = [];
 
     /// <summary>
     /// How rich a fossil is, on a scale the mine does not provide. The type is written into the
@@ -695,16 +708,24 @@ public partial class DeepwaterEngagementSuiteGGRN
         if (!settings.Walls.GuideToSecret.Value)
             return;
 
+        // Anything this close has been reached, and a wall does not need pointing at twice.
+        foreach (var wall in walls.Where(w => w.Distance <= DelveWallReachedDistance))
+            _delveVisitedWalls.Add(wall.Id);
+
+        // Only what is still sealed and still worth it. Being a passage the game hides is no longer
+        // enough on its own: an emptied one is still hidden, and the line went on pointing at it.
         var target = walls
-            .Where(w => w.IconHidden
-                        || DelveWallVerdict(w, all, settings.Walls.ContentsRadius.Value).Tier >= settings.Walls.MinimumTier.Value)
+            .Where(w => !_delveVisitedWalls.Contains(w.Id))
+            .Where(w => DelveWallVerdict(w, all, settings.Walls.ContentsRadius.Value).Tier >= settings.Walls.MinimumTier.Value)
             .OrderBy(w => w.Distance)
             .FirstOrDefault();
 
         if (target == null)
             return;
 
-        var color = target.IconHidden ? Color.Lime : Color.Magenta;
+        // One colour. The line means one thing - there is something worth having through there - and
+        // a second colour would be a distinction without a decision behind it.
+        var color = Color.Lime;
 
         if (largeMapOpen)
         {
