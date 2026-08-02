@@ -42,6 +42,89 @@ public partial class DeepwaterEngagementSuiteGGRN
         }
     }
 
+
+    /// <summary>
+    /// The chart's node elements, found by the shape of the tree rather than by the typed accessor.
+    ///
+    /// <c>GridElement</c> comes back empty in this build - its offset has moved - but the nodes are
+    /// still there and still laid out the way a grid is: a handful of large square tiles, each with
+    /// dozens of equally sized small children. Nothing else in the panel looks like that, so the
+    /// shape identifies it without depending on an offset that has already drifted once.
+    ///
+    /// Reading an element as a DelveCell is only meaningful once the right element is in hand, which
+    /// is the whole reason this is done by shape first and cast second.
+    /// </summary>
+    private static List<Element> FindChartNodeElements(Element chart)
+    {
+        var best = new List<Element>();
+        Collect(chart, 0);
+        return best;
+
+        void Collect(Element element, int depth)
+        {
+            if (element == null || depth > 6)
+                return;
+
+            IList<Element> children;
+            try
+            {
+                children = element.Children;
+            }
+            catch
+            {
+                return;
+            }
+
+            if (children == null || children.Count == 0)
+                return;
+
+            // A grid tile: square, large, and full of equally sized small children.
+            var tiles = new List<Element>();
+            foreach (var child in children)
+            {
+                try
+                {
+                    var r = child.GetClientRectCache;
+                    if (r.Width > 300 && Math.Abs(r.Width - r.Height) < 2 && child.ChildCount >= 16)
+                        tiles.Add(child);
+                }
+                catch
+                {
+                    // an element can go unreadable while the panel animates
+                }
+            }
+
+            if (tiles.Count > 0)
+            {
+                var nodes = new List<Element>();
+                foreach (var tile in tiles)
+                {
+                    try
+                    {
+                        foreach (var node in tile.Children)
+                        {
+                            var r = node.GetClientRectCache;
+                            if (r.Width > 8 && Math.Abs(r.Width - r.Height) < 2)
+                                nodes.Add(node);
+                        }
+                    }
+                    catch
+                    {
+                        // a tile can be unreadable while the chart scrolls
+                    }
+                }
+
+                if (nodes.Count > best.Count)
+                    best = nodes;
+
+                return;
+            }
+
+            foreach (var child in children)
+                Collect(child, depth + 1);
+        }
+    }
+
     /// <summary>
     /// The chart window's raw child tree, recorded when the typed grid comes back empty.
     ///
@@ -110,6 +193,22 @@ public partial class DeepwaterEngagementSuiteGGRN
             return null;
 
         var result = new List<object>();
+
+        // Shape first: the typed grid accessor is empty in this build.
+        foreach (var node in FindChartNodeElements(chart))
+        {
+            try
+            {
+                result.Add(DescribeChartCell(node.AsObject<DelveCell>()));
+            }
+            catch
+            {
+                // a node can go unreadable mid-walk
+            }
+        }
+
+        if (result.Count > 0)
+            return result;
 
         try
         {
