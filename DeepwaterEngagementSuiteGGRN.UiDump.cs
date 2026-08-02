@@ -92,6 +92,8 @@ public partial class DeepwaterEngagementSuiteGGRN
                 // Null unless the chart is open. Every cell at once, where the screen only ever
                 // names the one under the cursor.
                 subterraneanChart = SubterraneanChartDump(),
+                // Where a node keeps its name, found by looking. Null unless the chart is open.
+                chartCalibration = CalibrateChartCells(),
                 visibleUi = VisibleUiDump(),
             };
 
