@@ -497,8 +497,15 @@ public partial class DeepwaterEngagementSuiteGGRN
                     if (kind.Category == DelveCategory.Generic && settings.HideGeneric.Value)
                         continue;
 
+                    // Walls reach further than anything else. A chest never walked near costs
+                    // nothing, but a passage missed for sitting outside the radius is a whole room
+                    // never entered - and the game lists it regardless of what the player can see.
                     var distance = Vector2.Distance(playerPos, entity.GridPosNum);
-                    if (distance > settings.Range.Value)
+                    var reach = kind.Category == DelveCategory.Wall
+                        ? settings.Walls.Range.Value
+                        : settings.Range.Value;
+
+                    if (distance > reach)
                         continue;
 
                     var amount = kind.Category is DelveCategory.Azurite or DelveCategory.Dynamite or DelveCategory.Flares

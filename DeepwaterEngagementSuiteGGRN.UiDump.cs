@@ -27,7 +27,7 @@ public partial class DeepwaterEngagementSuiteGGRN
     /// How far to look for objects. The guide only cares about what is close enough to walk to, but
     /// a census wants the whole room — a Delve wall is worth knowing about well before it is in reach.
     /// </summary>
-    private const float DumpRadius = 300f;
+    private const float DumpRadius = 1200f;
 
     /// <summary>
     /// Ceiling on the detailed object list so a busy area cannot produce an unreadable file. It is

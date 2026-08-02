@@ -10,8 +10,11 @@ public class DelveSettings
     [Menu("Show what is worth taking in the mine", "Ranks the objects around you and marks them on the map.")]
     public ToggleNode Enabled { get; set; } = new ToggleNode(true);
 
-    [Menu("How far to look", "Objects further away than this are ignored entirely.")]
-    public RangeNode<int> Range { get; set; } = new RangeNode<int>(400, 50, 1000);
+    [Menu("How far to look",
+        "The game lists what is in the area whether or not you can see it, so this is a choice about " +
+        "clutter rather than a limit on what can be known. Wide by default: the point is not to walk " +
+        "past things.")]
+    public RangeNode<int> Range { get; set; } = new RangeNode<int>(1000, 50, 4000);
 
     [Menu("How many to list", "Length of the ranked list drawn on screen.")]
     public RangeNode<int> ListLength { get; set; } = new RangeNode<int>(6, 1, 20);
@@ -101,6 +104,11 @@ public class DelveWallSettings
 
     [Menu("Keep the line up while running", "Drawn in the world too, not only on the open map.")]
     public ToggleNode GuideInWorld { get; set; } = new ToggleNode(true);
+
+    [Menu("How far to look for walls",
+        "Walls get their own reach, wider than everything else. A chest you never come near costs you " +
+        "nothing, but a passage missed because it sat outside the radius is a room you never entered.")]
+    public RangeNode<int> Range { get; set; } = new RangeNode<int>(2000, 100, 6000);
 
     [Menu("Prompt to throw dynamite within this distance", "How close you have to be before the reminder appears.")]
     public RangeNode<int> PromptDistance { get; set; } = new RangeNode<int>(70, 10, 400);
