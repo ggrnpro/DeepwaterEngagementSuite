@@ -66,6 +66,8 @@ public partial class DeepwaterEngagementSuiteGGRN
         ["Glyphic"] = 3,
         ["Tangled"] = 3,
         ["Hollow"] = 3,
+        ["Shuddering"] = 2,
+        ["Enchanted"] = 2,
         ["Encrusted"] = 2,
         ["Prismatic"] = 2,
         ["Gilded"] = 2,
@@ -137,6 +139,11 @@ public partial class DeepwaterEngagementSuiteGGRN
         if (path.Contains(DelveWallMarker, StringComparison.Ordinal))
             return new DelveKind(DelveCategory.Wall, false, false, false, 0);
 
+        // Loose azurite lying on the floor is terrain rather than a chest, and it turns up in
+        // clusters of ten, so it is free azurite that no icon points at.
+        if (path.Contains("DelveAzuriteShard", StringComparison.Ordinal))
+            return new DelveKind(DelveCategory.AzuriteShard, false, false, false, 1);
+
         if (!path.StartsWith(DelveChestPrefix, StringComparison.Ordinal))
             return new DelveKind(DelveCategory.Unknown, false, false, false, 0);
 
@@ -186,11 +193,11 @@ public partial class DeepwaterEngagementSuiteGGRN
         else if (tail.Contains("Generic", StringComparison.Ordinal))
             category = DelveCategory.Generic;
 
-        // Azurite and fossils grade on their own scales rather than on the trailing digit, which is
-        // just the art variant for them. A vein numbers itself right after its name, and a fossil
-        // says which fossil it is in the word before "Fossil".
+        // A vein grades on the last number in its path, not the first: DelveAzuriteVein1_1 renders as
+        // "Flawed Azurite Vein" and 1_2 as a plain "Azurite Vein", so reading the number straight
+        // after the name gave both of them the same grade and the richer one never stood out.
         if (category == DelveCategory.Azurite)
-            tier = Math.Max(1, LeadingNumberAfter(tail, "AzuriteVein"));
+            tier = Math.Max(1, tier);
         else if (category == DelveCategory.Fossil)
             tier = FossilGrade(tail);
 
@@ -200,19 +207,6 @@ public partial class DeepwaterEngagementSuiteGGRN
         return new DelveKind(category, offPath, behindWall, empty, tier);
     }
 
-    /// <summary>The number written immediately after <paramref name="marker"/>, or zero.</summary>
-    private static int LeadingNumberAfter(string text, string marker)
-    {
-        var at = text.IndexOf(marker, StringComparison.Ordinal);
-        if (at < 0)
-            return 0;
-
-        var value = 0;
-        for (var i = at + marker.Length; i < text.Length && char.IsDigit(text[i]); i++)
-            value = value * 10 + (text[i] - '0');
-
-        return value;
-    }
 
     /// <summary>
     /// Grades a fossil chest from the fossil named in its path. Unknown types land in the middle
@@ -269,6 +263,7 @@ public partial class DeepwaterEngagementSuiteGGRN
             // A vein's grade is the whole decision, so it drives the value directly. The amount is
             // still added when the mine happens to print one, which it does not for veins.
             DelveCategory.Azurite => 60 + 90 * Math.Max(0, kind.Tier - 1) + amount * 0.1,
+            DelveCategory.AzuriteShard => 45,
             DelveCategory.Resonator => 60 + 40 * kind.Tier,
             DelveCategory.Fossil => 60 + 60 * Math.Max(0, kind.Tier),
             DelveCategory.Divination => 120,
@@ -312,6 +307,7 @@ public partial class DeepwaterEngagementSuiteGGRN
         var name = kind.Category switch
         {
             DelveCategory.Azurite => amount > 0 ? $"Azurite {amount}" : "Azurite",
+            DelveCategory.AzuriteShard => "Azurite shard",
             DelveCategory.Resonator => kind.Tier > 0 ? $"Resonator T{kind.Tier}" : "Resonator",
             DelveCategory.Dynamite => "Dynamite",
             DelveCategory.Flares => "Flares",
